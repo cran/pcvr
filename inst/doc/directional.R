@@ -75,9 +75,13 @@ do.call(rbind, vm_ex2$posterior)
 #    } else {
 #      "x"
 #    }
-#    ggproto(NULL, CoordPolar, theta = theta, r = r, start = start,
-#            direction = sign(direction), clip = clip,
-#            is_linear = function() {TRUE})
+#    ggproto(NULL, CoordPolar,
+#      theta = theta, r = r, start = start,
+#      direction = sign(direction), clip = clip,
+#      is_linear = function() {
+#        TRUE
+#      }
+#    )
 #  }
 #  
 #  p <- vm_ex2$plot

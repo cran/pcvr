@@ -20,6 +20,8 @@
 #' @import ggplot2
 #' @import patchwork
 #' @importFrom stats rlnorm dlnorm
+#' @seealso \link{barg} for Bayesian model reporting metrics, \link{growthSim} for simulating data using
+#' similar specification.
 #' @examples
 #'
 #' set.seed(123)
@@ -27,7 +29,6 @@
 #' plotPrior(priors)
 #'
 #' plotPrior(priors, "gompertz")[[1]]
-#'
 #'
 #' @export
 
@@ -88,8 +89,10 @@ plotPrior <- function(priors, type = "density", n = 200, t = 25) {
         y = "Y", title = paste0(n, " curves simulated from prior draws"),
         color = "Prior"
       ) +
-      ggplot2::theme(legend.position = "inside",
-                     legend.position.inside = c(0.9, 0.9))
+      ggplot2::theme(
+        legend.position = "inside",
+        legend.position.inside = c(0.9, 0.9)
+      )
 
     if (type %in% c("logistic", "gompertz", "weibull", "frechet", "gumbel")) {
       x <- "B"

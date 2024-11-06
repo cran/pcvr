@@ -60,7 +60,7 @@ test_that("Test Logistic nls modeling", {
       3.34892124655795, 3.34892124655795
     )
   )
-
+  invisible(print(ss))
   fit <- fitGrowth(ss)
   expect_s3_class(fit, "nls")
 
@@ -114,7 +114,7 @@ test_that("Test Logistic nlme modeling", {
       3.34892124655795, 3.34892124655795
     )
   )
-
+  invisible(print(ss))
   fit <- suppressWarnings(fitGrowth(ss))
   expect_s3_class(fit, "nlme")
 
@@ -251,7 +251,7 @@ test_that("Test Logistic nlme modeling without individuals", {
 test_that("Test Logistic nlme modeling without individuals or groups", {
   skip_on_cran()
   ss <- growthSS(
-    model = "logistic", form = y ~ time, sigma = "power", # failing on this so far
+    model = "logistic", form = y ~ time, sigma = "power",
     df = logistic_df, type = "nlme"
   )
   expect_equal(
@@ -413,19 +413,19 @@ gomp_df <- growthSim("gompertz",
 
 test_that("Test nls gam modeling", {
   skip_on_cran()
-  ss <- suppressMessages(growthSS(
+  ss1 <- suppressMessages(growthSS(
     model = "gam", form = y ~ time | id / group,
     df = gomp_df, type = "nls"
   ))
-  expect_equal(as.character(ss$formula), as.character(y ~ bs(time) * group))
+  expect_equal(as.character(ss1$formula), as.character(y ~ bs(time) * group))
 
-  fit <- fitGrowth(ss)
+  fit <- fitGrowth(ss1)
   expect_s3_class(fit, "lm")
 
-  p <- growthPlot(fit = fit, form = ss$pcvrForm, df = ss$df)
+  p <- growthPlot(fit = fit, form = ss1$pcvrForm, df = ss1$df)
   expect_s3_class(p, "ggplot")
 
-  av <- testGrowth(ss = ss, fit)$anova
+  av <- testGrowth(ss = ss1, fit)$anova
   expect_s3_class(av, "anova")
 })
 

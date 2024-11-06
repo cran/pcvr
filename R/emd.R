@@ -70,47 +70,52 @@
 #' head(x2)
 #'
 #' \donttest{
-#' library(data.table)
-#'   file <- paste0(
-#'     "https://media.githubusercontent.com/media/joshqsumner/",
-#'     "pcvrTestData/main/pcv4-multi-value-traits.csv"
-#'   )
-#'   df1 <- read.pcv(file, "wide", reader = "fread")
-#'
-#'   df1$genotype <- substr(df1$barcode, 3, 5)
-#'   df1$genotype <- ifelse(df1$genotype == "002", "B73",
-#'     ifelse(df1$genotype == "003", "W605S",
-#'       ifelse(df1$genotype == "004", "MM", "Mo17")
+#' tryCatch(
+#'   {
+#'     library(data.table)
+#'     file <- paste0(
+#'       "https://media.githubusercontent.com/media/joshqsumner/",
+#'       "pcvrTestData/main/pcv4-multi-value-traits.csv"
 #'     )
-#'   )
-#'   df1$fertilizer <- substr(df1$barcode, 8, 8)
-#'   df1$fertilizer <- ifelse(df1$fertilizer == "A", "100",
-#'     ifelse(df1$fertilizer == "B", "50", "0")
-#'   )
+#'     df1 <- read.pcv(file, "wide", reader = "fread")
 #'
-#'   tryCatch({
+#'     df1$genotype <- substr(df1$barcode, 3, 5)
+#'     df1$genotype <- ifelse(df1$genotype == "002", "B73",
+#'       ifelse(df1$genotype == "003", "W605S",
+#'         ifelse(df1$genotype == "004", "MM", "Mo17")
+#'       )
+#'     )
+#'     df1$fertilizer <- substr(df1$barcode, 8, 8)
+#'     df1$fertilizer <- ifelse(df1$fertilizer == "A", "100",
+#'       ifelse(df1$fertilizer == "B", "50", "0")
+#'     )
+#'
 #'     w <- pcv.emd(df1,
 #'       cols = "hue_frequencies", reorder = c("fertilizer", "genotype"),
-#'       mat = FALSE, plot = TRUE, parallel = 1)
-#'     }, error = function(err) {message(err)}
-#'   )
-#'
-#'   # Note on computational complexity
-#'   # This scales as O^2, see the plot below for some idea
-#'   # of the time for different input data sizes.
-#'   emdTime <- function(x, n = 1) {
-#'     x^2 / n * 0.0023
+#'       mat = FALSE, plot = TRUE, parallel = 1
+#'     )
+#'   },
+#'   error = function(err) {
+#'     message(err)
 #'   }
-#'   plot(
-#'     x = c(18, 36, 54, 72, 108, 135), y = c(0.74, 2.89, 6.86, 10.99, 26.25, 42.44),
-#'     xlab = "N Input Images", ylab = "time (seconds)"
-#'   ) # benchmarked test data
-#'   lines(x = 1:150, y = emdTime(1:150)) # exponential function
+#' )
 #'
-#'   plot(
-#'     x = 1:1000, y = emdTime(1:1000), type = "l",
-#'     xlab = "N Input Images", ylab = "time (seconds)"
-#'   )
+#' # Note on computational complexity
+#' # This scales as O^2, see the plot below for some idea
+#' # of the time for different input data sizes.
+#' emdTime <- function(x, n = 1) {
+#'   x^2 / n * 0.0023
+#' }
+#' plot(
+#'   x = c(18, 36, 54, 72, 108, 135), y = c(0.74, 2.89, 6.86, 10.99, 26.25, 42.44),
+#'   xlab = "N Input Images", ylab = "time (seconds)"
+#' ) # benchmarked test data
+#' lines(x = 1:150, y = emdTime(1:150)) # exponential function
+#'
+#' plot(
+#'   x = 1:1000, y = emdTime(1:1000), type = "l",
+#'   xlab = "N Input Images", ylab = "time (seconds)"
+#' )
 #' }
 #'
 #' @export
@@ -204,8 +209,8 @@ pcv.emd <- function(df, cols = NULL, reorder = NULL, include = reorder, mat = FA
       nrow = length(unique(df$INNER_ID_EMD)),
       ncol = length(unique(df$INNER_ID_EMD))
     )
-    values <- unlist(lapply(seq_along(unique(df$INNER_ID_EMD)), function(i_n) {
-      parallel::mclapply(seq_along(unique(df$INNER_ID_EMD)), function(j_n) {
+    values <- unlist(parallel::mclapply(seq_along(unique(df$INNER_ID_EMD)), function(i_n) {
+      lapply(seq_along(unique(df$INNER_ID_EMD)), function(j_n) {
         i <- unique(df$INNER_ID_EMD)[i_n]
         j <- unique(df$INNER_ID_EMD)[j_n]
         if (i_n < j_n) {
@@ -214,16 +219,16 @@ pcv.emd <- function(df, cols = NULL, reorder = NULL, include = reorder, mat = FA
             as.numeric(df[df$INNER_ID_EMD == as.character(j), value])
           )
         }
-      }, mc.cores = parallel)
-    }))
+      })
+    }, mc.cores = parallel))
     mat_obj[lower.tri(mat_obj)] <- values
     tmat_obj <- t(mat_obj)
     mat_obj[upper.tri(mat_obj)] <- tmat_obj[upper.tri(tmat_obj)]
     rownames(mat_obj) <- colnames(mat_obj) <- unique(df$INNER_ID_EMD)
     out_data <- mat_obj
   } else { # make long data
-    out_data <- do.call(rbind, lapply(seq_along(unique(df$INNER_ID_EMD)), function(i_n) {
-      do.call(rbind, parallel::mclapply(seq_along(unique(df$INNER_ID_EMD)), function(j_n) {
+    out_data <- do.call(rbind, parallel::mclapply(seq_along(unique(df$INNER_ID_EMD)), function(i_n) {
+      do.call(rbind, lapply(seq_along(unique(df$INNER_ID_EMD)), function(j_n) {
         i <- unique(df$INNER_ID_EMD)[i_n]
         j <- unique(df$INNER_ID_EMD)[j_n]
         emdOut <- NULL
@@ -255,8 +260,8 @@ pcv.emd <- function(df, cols = NULL, reorder = NULL, include = reorder, mat = FA
           }
           x
         }
-      }, mc.cores = parallel))
-    }))
+      }))
+    }, mc.cores = parallel))
   }
   return(out_data)
 }
@@ -277,13 +282,13 @@ pcv.emd <- function(df, cols = NULL, reorder = NULL, include = reorder, mat = FA
   #* `calculate emd`
   if (mat) { # make dist matrix
     mat_obj <- matrix(0, nrow = nrow(df), ncol = nrow(df))
-    values <- unlist(lapply(seq_len(nrow(df)), function(i) {
-      parallel::mclapply(seq_len(nrow(df)), function(j) {
+    values <- unlist(parallel::mclapply(seq_len(nrow(df)), function(i) {
+      lapply(seq_len(nrow(df)), function(j) {
         if (i < j) {
           dist_1d(as.numeric(df[i, cols]), as.numeric(df[j, cols]))
         }
-      }, mc.cores = parallel)
-    }))
+      })
+    }, mc.cores = parallel))
     mat_obj[lower.tri(mat_obj)] <- values
     tmat_obj <- t(mat_obj)
     mat_obj[upper.tri(mat_obj)] <- tmat_obj[upper.tri(tmat_obj)]
@@ -293,8 +298,8 @@ pcv.emd <- function(df, cols = NULL, reorder = NULL, include = reorder, mat = FA
       rownames(out_data) <- interaction(df[, include])
     }
   } else { # make long dataframe
-    out_data <- do.call(rbind, lapply(seq_len(nrow(df)), function(i) {
-      do.call(rbind, parallel::mclapply(seq_len(nrow(df)), function(j) {
+    out_data <- do.call(rbind, parallel::mclapply(seq_len(nrow(df)), function(i) {
+      do.call(rbind, lapply(seq_len(nrow(df)), function(j) {
         emdOut <- NULL
         if (i == j) {
           emdOut <- 0
@@ -313,8 +318,8 @@ pcv.emd <- function(df, cols = NULL, reorder = NULL, include = reorder, mat = FA
           }
           x
         }
-      }, mc.cores = parallel))
-    }))
+      }))
+    }, mc.cores = parallel))
   }
   return(out_data)
 }

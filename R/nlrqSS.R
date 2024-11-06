@@ -47,8 +47,16 @@
     message(paste0("Individual is not used with type = '", type, "'."))
   }
   df <- parsed_form$data
+  if (model == "gam") {
+    df[[paste(group, collapse = ".")]] <- interaction(df[, group])
+    group <- paste(group, collapse = ".")
+  }
+  #* `if there are multiple groups combine them for nlrq/nls models`
+  #* Also assign numeric labels to factor groups
   if (USEGROUP) {
-    df[[group]] <- factor(df[[group]])
+    new_group <- paste0(group, collapse = ".")
+    df[[new_group]] <- interaction(df[, group])
+    group <- new_group
     df[[paste0(group, "_numericLabel")]] <- unclass(df[[group]])
   }
   #* `assemble growth formula`
@@ -391,7 +399,7 @@
   A <- max(y) # amplitude, conventionally d
   C <- x[which.max(y)] # position of midpoint, conventionally e
   pseudoY <- log((y + 1e-04) / A)
-  pseudoX <- (x - C) ^ 2
+  pseudoX <- (x - C)^2
   dat <- data.frame(pseudoY = pseudoY, pseudoX = pseudoX)
   coefs <- coef(lm(pseudoY ~ pseudoX - 1, data = dat))
   B <- -coefs[1] # pseudo precision/slope at inflection, conventionally b
@@ -423,7 +431,7 @@
   A <- max(y) # amplitude, conventionally d
   C <- x[which.max(y)] # position of midpoint, conventionally e
   pseudoY <- (A - y) / y
-  pseudoX <- (x - C) ^ 2
+  pseudoX <- (x - C)^2
   dat <- data.frame(pseudoY = pseudoY, pseudoX = pseudoX)
   coefs <- coef(lm(pseudoY ~ pseudoX - 1, data = dat))
   B <- coefs[1] # pseudo precision/slope at inflection, conventionally b
@@ -456,12 +464,14 @@
   C <- x[which.max(y)]
   firstidx <- min(which(y != 0))
   D <- ifelse(firstidx == 1,
-              x[1],
-              (x[firstidx] + x[(firstidx - 1)]) / 2)
+    x[1],
+    (x[firstidx] + x[(firstidx - 1)]) / 2
+  )
   secidx <- max(which(y != 0))
   E <- ifelse(secidx == length(y),
-              x[length(x)],
-              (x[secidx] + x[(secidx + 1)]) / 2)
+    x[length(x)],
+    (x[secidx] + x[(secidx + 1)]) / 2
+  )
   start <- stats::setNames(c(A, 1, C, D, E), c("A", "B", "C", "D", "E"))
   if (int) {
     start <- stats::setNames(append(obs_min, start), c("I", "A", "B", "C", "D", "E"))
@@ -907,7 +917,7 @@
   return(list("formula" = nf, "pars" = pars))
 }
 
-.nlrq_form_beta  <- function(x, y, USEGROUP, group, pars, int = FALSE) {
+.nlrq_form_beta <- function(x, y, USEGROUP, group, pars, int = FALSE) {
   if (int) {
     total_pars <- c("I", "A", "B", "C", "D", "E")
   } else {
@@ -917,11 +927,15 @@
     pars <- total_pars
   }
   if (int) {
-    str_nf <- paste0(y, " ~ I[] + A[] * (((", x, " - D[]) / (C[] - D[])) * ((E[] - ", x,
-                     ") / (E[] - C[])) ^ ((E[] - C[]) / (C[] - D[]))) ^ B[]")
+    str_nf <- paste0(
+      y, " ~ I[] + A[] * (((", x, " - D[]) / (C[] - D[])) * ((E[] - ", x,
+      ") / (E[] - C[])) ^ ((E[] - C[]) / (C[] - D[]))) ^ B[]"
+    )
   } else {
-    str_nf <- paste0(y, " ~ A[] * (((", x, " - D[]) / (C[] - D[])) * ((E[] - ", x,
-                     ") / (E[] - C[])) ^ ((E[] - C[]) / (C[] - D[]))) ^ B[]")
+    str_nf <- paste0(
+      y, " ~ A[] * (((", x, " - D[]) / (C[] - D[])) * ((E[] - ", x,
+      ") / (E[] - C[])) ^ ((E[] - C[]) / (C[] - D[]))) ^ B[]"
+    )
   }
   if (USEGROUP) {
     for (par in total_pars) {

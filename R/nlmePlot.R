@@ -58,15 +58,18 @@ nlmePlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, face
     individual <- NULL
   }
   group <- parsed_form$group
+  facetGroups <- .no_dummy_labels(group, facetGroups)
   df <- parsed_form$data
+  df[[paste(group, collapse = ".")]] <- interaction(df[, group])
+  group <- paste(group, collapse = ".")
   #* `filter by groups if groups != NULL`
   if (!is.null(groups)) {
-    df <- df[df[[group]] %in% groups, ]
+    df <- df[df[[group]] %in% paste(groups, collapse = "."), ]
   }
   intVar <- paste0(group, individual)
   #* `make new data if timerange is not NULL`
   if (!is.null(timeRange)) {
-    new_data <- do.call(rbind, lapply(unique(df[[intVar]]), function(g) {
+    new_data <- do.call(rbind, lapply(unique(df[["autocor"]]), function(g) {
       stats::setNames(data.frame(g, timeRange), c(intVar, x))
     }))
     new_data[[group]] <- gsub("[.].*", "", new_data[[intVar]])
@@ -75,14 +78,11 @@ nlmePlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, face
   } else {
     new_data <- df
   }
-
   preds <- new_data
   preds$trendline <- round(predict(fit, preds), 4)
   preds <- preds[!duplicated(preds$trendline), ]
   preds <- .add_sigma_bounds(preds, fit, x, group)
-
   #* `plot`
-
   #* `facetGroups`
   facet_layer <- NULL
   if (facetGroups) {
@@ -123,9 +123,13 @@ nlmePlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, face
     iteration_group <- unique(preds[[group]])[g]
     sub <- preds[preds[[group]] == iteration_group, ]
     plot <- plot +
-      ggplot2::geom_ribbon(data = sub, ggplot2::aes(ymin = .data[["sigma_ymin"]],
-                                                    ymax = .data[["sigma_ymax"]]),
-                           fill = virList[[g]][1], alpha = 0.5) +
+      ggplot2::geom_ribbon(
+        data = sub, ggplot2::aes(
+          ymin = .data[["sigma_ymin"]],
+          ymax = .data[["sigma_ymax"]]
+        ),
+        fill = virList[[g]][1], alpha = 0.5
+      ) +
       ggplot2::geom_line(data = sub, color = virList[[g]][2], linewidth = 0.75)
   }
 
@@ -149,8 +153,10 @@ nlmePlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, face
     } else if (methods::is(fit$modelStruct$varStruct, "varIdent")) {
       baseSigma <- fit$sigma
       varSummary <- summary(fit$modelStruct$varStruct)
-      coefs <- data.frame(x = 1 / unique(attr(varSummary, "weight")),
-                          g = unique(attr(varSummary, "groups")))
+      coefs <- data.frame(
+        x = 1 / unique(attr(varSummary, "weight")),
+        g = unique(attr(varSummary, "groups"))
+      )
       out <- baseSigma * coefs[coefs$g == grp, "x"]
     }
 

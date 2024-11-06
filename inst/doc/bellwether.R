@@ -21,187 +21,69 @@ library(patchwork) # for easy ggplot manipulation/combination
 support <- seq(0, 1, 0.0001) # this style is simulated data
 plot(support, dbeta(support, 5, 5), type = "l", main = "simulated example")
 
-## -----------------------------------------------------------------------------
-base_url <- "https://raw.githubusercontent.com/joshqsumner/pcvrTestData/main/"
-base_url2 <- "https://media.githubusercontent.com/media/joshqsumner/pcvrTestData/main/"
-sv <- read.pcv(
-  filepath = paste0(base_url, "pcv4-single-value-traits.csv"),
-  reader = "fread"
-)
-
-## -----------------------------------------------------------------------------
-key <- read.csv(paste0(base_url, "smallPhenotyperRun_key.csv"))
-head(key)
-sv <- merge(sv, key, by = "barcode")
-table(sv$genotype, sv$fertilizer)
-
-## -----------------------------------------------------------------------------
-genotype <- substr(sv$barcode, 3, 5)
-genotype <- ifelse(genotype == "002", "B73",
-  ifelse(genotype == "003", "W605S",
-    ifelse(genotype == "004", "MM", "Mo17")
+## ----class.source="simulated", eval = T---------------------------------------
+set.seed(123)
+d <- growthSim("logistic",
+  n = 30, t = 25,
+  params = list(
+    "A" = c(140, 155, 150, 165, 180, 190, 175, 185, 200, 220, 210, 205),
+    "B" = c(13, 11, 12, 11, 10, 11, 12, 13, 14, 12, 12, 13),
+    "C" = c(3, 3.25, 3.5, 3.1, 2.9, 3.4, 3.75, 2.9, 3, 3.1, 3.25, 3.3)
   )
 )
-fertilizer <- substr(sv$barcode, 8, 8)
-fertilizer <- ifelse(fertilizer == "A", 100,
-  ifelse(fertilizer == "B", 50, 0)
-)
-table(genotype, fertilizer)
-
-## -----------------------------------------------------------------------------
-chip_size_px <- mean(c(sv$median_color_chip_height_median, sv$median_color_chip_width_median)) # ~52
-
-px_per_cm <- chip_size_px / 1.2 # ~ 43.5
-pixels_per_cmsq <- px_per_cm^2 # ~ 1890
-
-sv$area_cm2 <- sv$area_pixels / pixels_per_cmsq
-sv$height_cm <- sv$height_pixels / px_per_cm
-
-## ----class.source="static-code", eval=F---------------------------------------
-#  example <- read.pcv("prohibitivelyLargeFile.csv",
-#    filters = list(
-#      "trait in area_pixels, area_above_reference_pixels, area_below_reference_pixels",
-#      "sample in default"
-#    )
-#  )
-
-## ----class.source="static-code", eval=F---------------------------------------
-#  sv <- read.pcv(paste0(base_url2, "smallPhenotyperRun.csv"),
-#    mode = "wide",
-#    reader = "fread"
-#  )
-#  
-#  if (TRUE) { # we can parse barcodes for the metadata that we need
-#    sv$genotype <- substr(sv$barcode, 3, 5)
-#    sv$genotype <- ifelse(sv$genotype == "002", "B73",
-#      ifelse(sv$genotype == "003", "W605S",
-#        ifelse(sv$genotype == "004", "MM", "Mo17")
-#      )
-#    )
-#    sv$fertilizer <- substr(sv$barcode, 8, 8)
-#    sv$fertilizer <- ifelse(sv$fertilizer == "A", "100",
-#      ifelse(sv$fertilizer == "B", "50", "0")
-#    )
-#  } else { # or we might use a key file and join it to our data
-#    key <- read.csv(paste0(base_url, "smallPhenotyperRun_key.csv"))
-#    sv <- merge(sv, key, by = "barcode")
-#  }
-
-## ----eval=F-------------------------------------------------------------------
-#  onlyPhenos <- read.pcv.3(file = paste0(base_url, "pcv3Phenos.csv"), metaCol = NULL)
-#  colnames(onlyPhenos)
-#  
-#  phenosAndMeta <- read.pcv.3(
-#    file = paste0(base_url, "pcv3Phenos.csv"), metaCol = "meta",
-#    metaForm = "vis_view_angle_zoom_horizontal_gain_exposure_v_new_n_rep",
-#    joinSnapshot = "id"
-#  )
-#  colnames(phenosAndMeta)
-#  
-#  all <- read.pcv.3(
-#    file = paste0(base_url, "pcv3Phenos.csv"),
-#    snapshotFile = paste0(base_url, "pcv3Snapshot.csv"),
-#    designFile = paste0(base_url, "pcv3Design.csv"),
-#    metaCol = "meta", metaForm = "vis_view_angle_zoom_horizontal_gain_exposure_v_new_n_rep",
-#    joinSnapshot = "id", conversions = list(area = 13.2 * 3.7 / 46856)
-#  )
-#  colnames(all)
-
-## -----------------------------------------------------------------------------
-out <- bw.time(sv,
-  plantingDelay = 0, phenotype = "area_pixels", cutoff = 10,
-  timeCol = "timestamp", group = c("barcode", "rotation"), plot = TRUE
-)
-out$plot
-sv <- out$data
-dim(sv)
-
-## -----------------------------------------------------------------------------
-checkGroups(sv, c("DAS", "barcode", "rotation", "genotype", "fertilizer"))
-
-## -----------------------------------------------------------------------------
-phenotypes <- colnames(sv)[c(19:35, 43:45, 48:49)]
-phenoForm <- paste0("cbind(", paste0(phenotypes, collapse = ", "), ")")
-groupForm <- "DAS+timestamp+barcode+genotype+fertilizer"
-form <- as.formula(paste0(phenoForm, "~", groupForm))
-sv_ag_with_outliers <- aggregate(form, data = sv, mean, na.rm = TRUE)
-dim(sv_ag_with_outliers)
-
-## -----------------------------------------------------------------------------
-out <- bw.outliers(
-  df = sv_ag_with_outliers, phenotype = "area_pixels",
-  group = c("DAS", "genotype", "fertilizer"), plotgroup = c("barcode")
-)
-sv_ag <- out$data
-out$plot
-dim(sv_ag)
-
-## -----------------------------------------------------------------------------
-checkGroups(sv_ag, c("DAS", "barcode", "genotype", "fertilizer"))
-
-## -----------------------------------------------------------------------------
-water <- bw.water(paste0(base_url, "metadata.json"))
-
-water$genotype <- substr(water$barcode, 3, 5)
-water$genotype <- ifelse(water$genotype == "002", "B73",
-  ifelse(water$genotype == "003", "W605S",
-    ifelse(water$genotype == "004", "MM", "Mo17")
+d$genotype <- ifelse(d$group %in% letters[1:3], "MM",
+  ifelse(d$group %in% letters[4:6], "B73",
+    ifelse(d$group %in% letters[7:9], "Mo17", "W605S")
   )
 )
-water$fertilizer <- substr(water$barcode, 8, 8)
-water$fertilizer <- ifelse(water$fertilizer == "A", "100",
-  ifelse(water$fertilizer == "B", "50", "0")
+d$fertilizer <- ifelse(d$group %in% letters[seq(1, 12, 3)], 0,
+  ifelse(d$group %in% letters[seq(2, 12, 3)], 50, 100)
 )
-
-ggplot(water[water$weight_after != -1, ], aes(
-  x = DAS,
-  y = water_amount, group = barcode, color = genotype
-)) +
-  facet_wrap(~ factor(fertilizer, levels = c("0", "50", "100"))) +
-  geom_line() +
-  pcv_theme() +
-  guides(color = guide_legend(title = "Condition", override.aes = list(linewidth = 5))) +
-  labs(y = "Watering Amount (g)") +
-  theme(legend.position = "bottom")
-
-## -----------------------------------------------------------------------------
-test <- pwue(df = sv_ag, w = water, pheno = "area_pixels", time = "timestamp", id = "barcode")
-
-ggplot(test, aes(x = DAS, y = pWUE, color = genotype, group = barcode)) +
-  geom_line() +
-  guides(color = guide_legend(override.aes = list(linewidth = 5))) +
-  labs(y = expression("Pseudo WUE (" ~ frac(
-    Delta ~ textstyle("Area")[" pixels"],
-    Delta ~ textstyle("Weight")[" g"]
-  ) ~ ")")) +
-  pcv_theme()
+colnames(d)[c(1, 3, 4)] <- c("barcode", "DAS", "area_cm2")
+d$height_cm <- growthSim("monomolecular",
+  n = 30, t = 25,
+  params = list(
+    "A" = c(
+      25, 30, 35, 32, 34, 30,
+      37, 36, 34, 33, 35, 38
+    ),
+    "B" = c(
+      0.12, 0.08, 0.1, 0.11, 0.1,
+      0.12, 0.07, 0.12, 0.11, 0.09, 0.08, 0.09
+    )
+  )
+)$y
+d$width_cm <- growthSim("power law",
+  n = 30, t = 25,
+  params = list(
+    "A" = c(
+      10, 14, 13, 11, 12, 13,
+      10, 13, 14, 11, 14, 14
+    ),
+    "B" = c(
+      1.05, 1.13, 1.17, 1.01, 1.2,
+      1, 1.04, 1.07, 1.17, 1.04, 1.16, 1.17
+    )
+  )
+)$y
+d$hue_circular_mean_degrees <- growthSim("linear",
+  n = 30, t = 25,
+  params = list("A" = c(runif(12, 1, 3)))
+)$y +
+  round(runif(nrow(d), 50, 60))
+sv_ag <- d
 
 ## ----warning = FALSE, message = FALSE-----------------------------------------
 frem(sv_ag,
   des = c("genotype", "fertilizer"),
-  phenotypes = c(
-    "area_pixels", "area_above_reference_pixels", "area_below_reference_pixels",
-    "convex_hull_area_pixels", "convex_hull_vertices_none", "ellipse_angle_degrees",
-    "ellipse_eccentricity_none", "ellipse_major_axis_pixels", "ellipse_minor_axis_pixels",
-    "height_pixels", "height_above_reference_pixels", "height_below_reference_pixels",
-    "horizontal_reference_position_none", "hue_circular_mean_degrees", "hue_circular_std_degrees",
-    "hue_median_degrees", "perimeter_pixels", "solidity_none", "width_pixels"
-  ),
+  phenotypes = c("area_cm2", "height_cm", "width_cm", "hue_circular_mean_degrees"),
   timeCol = "DAS", cor = TRUE, returnData = FALSE, combine = FALSE, markSingular = TRUE, time = NULL
 )
 
 ## ----warning = FALSE, message = FALSE-----------------------------------------
 frem(sv_ag,
   des = c("genotype", "fertilizer"),
-  phenotypes = c(
-    "area_pixels", "area_above_reference_pixels", "area_below_reference_pixels",
-    "convex_hull_area_pixels", "convex_hull_vertices_none", "ellipse_angle_degrees",
-    "ellipse_eccentricity_none", "ellipse_major_axis_pixels",
-    "ellipse_minor_axis_pixels",
-    "height_pixels", "height_above_reference_pixels", "height_below_reference_pixels",
-    "horizontal_reference_position_none", "hue_circular_mean_degrees", "hue_circular_std_degrees",
-    "hue_median_degrees", "perimeter_pixels", "solidity_none", "width_pixels"
-  ),
+  phenotypes = c("area_cm2", "height_cm", "width_cm"),
   timeCol = "DAS", cor = FALSE, returnData = FALSE, combine = FALSE, markSingular = FALSE, time = "all"
 )
 
@@ -232,7 +114,6 @@ rt <- relativeTolerance(sv_ag,
   phenotypes = c("area_cm2", "height_cm"),
   grouping = c("fertilizer", "genotype", "DAS"), control = "fertilizer", controlGroup = "100"
 )
-
 
 ggplot(
   rt[rt$phenotype == "area_cm2" & rt$DAS %in% c(10:12), ],
@@ -372,12 +253,8 @@ ggplot(sv_ag, aes(x = DAS, y = area_cm2, group = barcode, color = group)) +
 #    labs(y = expression("Area" ~ "(cm"^2 ~ ")"))
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  brmViolin(
-#    model = fit, params = NULL,
-#    hyp = "num/denom>1.05", compareX = c("0.B73", "50.B73", "100.B73"), againstY = "0.B73",
-#    group_sep = "[.]", groups_into = c("soil", "genotype"), x = "soil", facet = "genotype",
-#    returnData = FALSE
-#  )
+#  brmViolin(fit, ss, ".../A_group0.B73 > 1.05") +
+#    ggplot2::theme(axis.text.x.bottom = ggplot2::element_text(angle = 90))
 
 ## -----------------------------------------------------------------------------
 ggplot(sv_ag[sv_ag$DAS == 18, ], aes(
@@ -394,34 +271,29 @@ ggplot(sv_ag[sv_ag$DAS == 18, ], aes(
   labs(y = "Hue Circular Mean (degrees)", x = "Soil and Genotype")
 
 ## -----------------------------------------------------------------------------
-hue_wide <- read.pcv(paste0(base_url2, "pcv4-multi-value-traits.csv"),
-  mode = "wide", reader = "fread"
+set.seed(123)
+dists <- stats::setNames(lapply(runif(12, 50, 60), function(i) {
+  list(mean = i, sd = 15)
+}), rep("rnorm", 12))
+d <- mvSim(dists,
+  wide = TRUE, n_samples = 5,
+  t = 25, model = "linear",
+  params = list("A" = runif(12, 1, 3))
 )
-hue_wide$genotype <- substr(hue_wide$barcode, 3, 5)
-hue_wide$genotype <- ifelse(hue_wide$genotype == "002", "B73",
-  ifelse(hue_wide$genotype == "003", "W605S",
-    ifelse(hue_wide$genotype == "004", "MM", "Mo17")
+d$group <- sapply(sub(".*_", "", d$group), function(x) {
+  letters[as.numeric(x)]
+})
+d$genotype <- ifelse(d$group %in% letters[1:3], "MM",
+  ifelse(d$group %in% letters[4:6], "B73",
+    ifelse(d$group %in% letters[7:9], "Mo17", "W605S")
   )
 )
-hue_wide$fertilizer <- substr(hue_wide$barcode, 8, 8)
-hue_wide$fertilizer <- ifelse(hue_wide$fertilizer == "A", "100",
-  ifelse(hue_wide$fertilizer == "B", "50", "0")
+d$fertilizer <- ifelse(d$group %in% letters[seq(1, 12, 3)], 0,
+  ifelse(d$group %in% letters[seq(2, 12, 3)], 50, 100)
 )
-hue_wide <- bw.time(hue_wide, timeCol = "timestamp", group = "barcode", plot = FALSE)
-
-phenotypes <- colnames(hue_wide)[grepl("hue_frequencies", colnames(hue_wide))]
-phenoForm <- paste0("cbind(", paste0(phenotypes, collapse = ", "), ")")
-groupForm <- "DAS+barcode+genotype+fertilizer"
-form <- as.formula(paste0(phenoForm, "~", groupForm))
-hue_wide <- aggregate(form, data = hue_wide, mean, na.rm = TRUE)
-
-## ----message=FALSE------------------------------------------------------------
-p <- pcv.joyplot(hue_wide[hue_wide$DAS == 18, ],
-  index = "hue_frequencies",
-  group = c("fertilizer", "genotype")
-)
-p + scale_fill_gradientn(colors = scales::hue_pal(l = 65)(360)) +
-  scale_y_discrete(limits = c("0", "50", "100"))
+colnames(d)[1] <- "DAS"
+colnames(d) <- gsub("sim_", "hue_frequencies_", colnames(d))
+hue_wide <- d
 
 ## ----message=FALSE------------------------------------------------------------
 p <- pcv.joyplot(hue_wide[hue_wide$DAS %in% c(5, 10, 15), ],

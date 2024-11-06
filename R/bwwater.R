@@ -9,9 +9,14 @@
 #' @importFrom utils type.convert
 #' @return A data frame containing the bellwether watering data
 #' @examples
-#'
-#' w <- bw.water("https://raw.githubusercontent.com/joshqsumner/pcvrTestData/main/metadata.json")
-#'
+#' tryCatch(
+#'   {
+#'     w <- bw.water("https://raw.githubusercontent.com/joshqsumner/pcvrTestData/main/metadata.json")
+#'   },
+#'   error = function(e) {
+#'     message(e)
+#'   }
+#' )
 #' @export
 
 bw.water <- function(file = NULL, envKey = "environment") {
@@ -34,8 +39,10 @@ bw.water <- function(file = NULL, envKey = "environment") {
           "%Y/%m/%d"
         ), tz = "UTC")
         begin <- min(env$timestamp, na.rm = TRUE)
-        message(paste0("Using the first watering time, ", begin,
-                       ", as beginning of experiment to assign DAS"))
+        message(paste0(
+          "Using the first watering time, ", begin,
+          ", as beginning of experiment to assign DAS"
+        ))
         env$DAS <- as.numeric((env$timestamp - begin) / 24 / 60 / 60)
       },
       error = function(err) {},

@@ -6,7 +6,8 @@
 #'
 #' @param s1 A data.frame or matrix of multi value traits or a vector of single value traits.
 #' If a multi value trait is used then column names should include a number representing the "bin".
-#' Alternatively for distributions other than "binomial" (which requires list data, see examples)
+#' Alternatively for distributions other than "binomial" (which requires list data
+#' with "successes" and "trials" as numeric vectors in the list, see examples)
 #' this can be a formula specifying \code{outcome ~ group} where group has exactly 2
 #' levels. If using wide MV trait data then the formula should specify column positions ~ grouping
 #' such as \code{1:180 ~ group}.
@@ -294,7 +295,12 @@
 #' A list with named elements:
 #' \itemize{
 #'    \item{\strong{summary}: A data frame containing HDI/HDE values for each sample and
-#'    the ROPE as well as posterior probability of the hypothesis.}
+#'    the ROPE as well as posterior probability of the hypothesis and ROPE test (if specified).
+#'    The HDE is the "Highest Density
+#'    Estimate" of the posterior, that is the tallest part of the probability density function. The
+#'    HDI is the Highest Density Interval, which is an interval that contains X\% of the posterior
+#'    distribution, so \code{cred.int.level = 0.8} corresponds to an HDI that includes 80 percent
+#'    of the posterior probability.}
 #'    \item{\strong{posterior}: A list of updated parameters in the same format as the prior
 #'     for the given method. If desired this does allow for Bayesian updating.}
 #'    \item{\strong{plot_df}: A data frame of probabilities along the support for each sample.

@@ -68,6 +68,9 @@ ss <- growthSS(
 fit <- fitGrowth(ss)
 growthPlot(fit, form = ss$pcvrForm, df = ss$df)
 
-
+}
+\seealso{
+\link{growthSS} and \link{fitGrowth} for making compatible models, \link{testGrowth}
+for hypothesis testing on compatible models.
 }
 \keyword{growth-curve}

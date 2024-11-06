@@ -29,6 +29,8 @@
 #' hiearchical predictor be? If left NULL (the default) the mean value is used.
 #' @keywords growth-curve
 #' @importFrom methods is
+#' @seealso \link{growthSS} and \link{fitGrowth} for making compatible models, \link{testGrowth}
+#' for hypothesis testing on compatible models.
 #' @examples
 #'
 #' simdf <- growthSim("logistic",
@@ -41,7 +43,6 @@
 #' )
 #' fit <- fitGrowth(ss)
 #' growthPlot(fit, form = ss$pcvrForm, df = ss$df)
-#'
 #'
 #' @return Returns a ggplot showing a brms model's credible
 #' intervals and optionally the individual growth lines.
@@ -61,7 +62,9 @@ growthPlot <- function(fit, form, groups = NULL, df = NULL, timeRange = NULL,
     model_class <- class(fit[[1]])
   }
   if (methods::is(fit, "brmsfit")) {
-    if (attr(fit$formula$formula, "nl")) { # non linear models are growth models
+    is_gam <- as.logical(length(fit$basis$dpars[[fit$family$dpars[1]]]$sm))
+    if (attr(fit$formula$formula, "nl") || is_gam) {
+      # non linear models are growth models, gams are linear but have spline dpars for the first param
       plot <- brmPlot(
         fit = fit, form = form, groups = groups, df = df, timeRange = timeRange,
         facetGroups = facetGroups, hierarchy_value = hierarchy_value, vir_option = virMaps[1]

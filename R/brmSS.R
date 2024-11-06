@@ -148,10 +148,18 @@
   hierarchical_predictor <- parsed_form$hierarchical_predictor
 
   #* `convert group to character to avoid unexpected factor stuff`
-  df[[group]] <- as.character(df[[group]])
+  df[, group] <- lapply(group, function(grp) {
+    as.character(df[[grp]])
+  })
+  #* `if there are gams involved and multiple groups then make a group interaction variable`
+  if (length(group) > 1 && any(grepl("spline|gam", c(model, sigma)))) {
+    df[[paste(group, collapse = ".")]] <- interaction(df[, group])
+  }
   #* `Make autocorrelation formula`
   if (USEINDIVIDUAL) {
-    corForm <- as.formula(paste0("~arma(~", x, "|", individual, ":", group, ",1,1)"))
+    corForm <- as.formula(paste0("~arma(~", x, "|",
+                                 paste(c(individual, group), collapse = ":"),
+                                 ",1,1)"))
   } else {
     corForm <- NULL
   }
@@ -167,7 +175,7 @@
   matched_model <- matchGrowthModelRes[["model"]]
   decay <- matchGrowthModelRes[["decay"]]
   #* `Make growth formula`
-  nTimes <- min(unlist(lapply(split(df, df[[group]]), function(d) {
+  nTimes <- min(unlist(lapply(split(df, interaction(df[, group])), function(d) {
     length(unique(d[[x]]))
   }))) # for spline knots
   splineHelperForm <- NULL
@@ -223,11 +231,15 @@
   #* `Make hierarchical parameter model formulas`
   if (!is.null(hierarchical_predictor)) {
     if (is.null(hierarchy)) {
-      warning(paste0("hierarchy argument not provided, assuming linear models with intercepts ",
-                     "for all ", matched_model, " model parameters (",
-                     paste(pars, collapse = ", "),
-                     ")."))
-      hierarchy <- lapply(pars, function(p) {"int_linear"})
+      warning(paste0(
+        "hierarchy argument not provided, assuming linear models with intercepts ",
+        "for all ", matched_model, " model parameters (",
+        paste(pars, collapse = ", "),
+        ")."
+      ))
+      hierarchy <- lapply(pars, function(p) {
+        "int_linear"
+      })
       names(hierarchy) <- pars
     }
 
@@ -236,8 +248,10 @@
       intModelRes <- .intModelHelper(hrc_model)
       hrc_model <- intModelRes$model
       hrc_int <- intModelRes$int
-      .brmDparHelper(dpar = pname, model = hrc_model, x = hierarchical_predictor,
-                     group, nTimes, USEGROUP, priors, int = hrc_int)
+      .brmDparHelper(
+        dpar = pname, model = hrc_model, x = hierarchical_predictor,
+        group, nTimes, USEGROUP, priors, int = hrc_int, force_nl = TRUE
+      )
       #* here passing `pname` to the `dpar` argument of .brmDparHelper will make
       #* .brmDparHelper add that name as a prefix on all of the existing model parameters.
       #* Since all the parameter names are unique coming into this they will be unique coming
@@ -268,7 +282,7 @@
 
   if (!is.null(pars)) {
     if (USEGROUP) {
-      parForm <- as.formula(paste0(paste(pars, collapse = "+"), "~0+", group))
+      parForm <- as.formula(paste0(paste(pars, collapse = "+"), "~0+", paste(group, collapse = "*")))
     } else {
       parForm <- as.formula(paste0(paste(pars, collapse = "+"), "~1"))
     }
@@ -301,7 +315,7 @@
       init
     }
     formals(initFun)$pars <- pars
-    formals(initFun)$nPerChain <- length(unique(df[[group]]))
+    formals(initFun)$nPerChain <- length(unique(interaction(df[, group])))
     wrapper <- function() {
       initFun()
     }
@@ -311,7 +325,7 @@
 
   #* ***** `Raise Message for complex models` *****
 
-  if (length(pars) * length(unique(df[[group]])) > 50) {
+  if (length(pars) * length(unique(interaction(df[, group]))) > 50) {
     message(paste0(
       "This model will estimate >50 parameters (excluding any smooth terms). \n\n",
       "If the MCMC is very slow then consider fitting separate models and using `combineDraws()` ",
@@ -322,7 +336,7 @@
   #* ***** `Return Components` *****
   out[["initfun"]] <- wrapper
   out[["df"]] <- df
-  out[["family"]] <- "student"
+  out[["family"]] <- family
   out[["pcvrForm"]] <- form
   return(out)
 }

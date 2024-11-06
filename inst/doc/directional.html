@@ -465,10 +465,10 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <details class="chunk-details" open><summary class="chunk-summary"><span class="chunk-summary-text">Code</span></summary>
 <div class="sourceCode" id="cb5"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb5-1"><a href="#cb5-1" aria-hidden="true"></a>vm_ex1<span class="op">$</span>summary</span></code></pre></div>
 </details>
-<pre><code>##     HDE_1 HDI_1_low HDI_1_high    HDE_2 HDI_2_low HDI_2_high   hyp post.prob
-## 1 49.4653  32.76328    64.7535 59.53219  40.50469   78.30801 equal 0.6373905
+<pre><code>##      HDE_1 HDI_1_low HDI_1_high    HDE_2 HDI_2_low HDI_2_high   hyp post.prob
+## 1 49.46678  32.66822   64.46699 59.52812  41.66264   79.59501 equal 0.6375772
 ##    HDE_rope HDI_rope_low HDI_rope_high rope_prob
-## 1 -10.41765    -34.39589      14.50715 0.2245815</code></pre>
+## 1 -10.49173    -34.87026      14.28739 0.2237951</code></pre>
 <p>Displaying plots of these data can be slower than for other conjugate methods due to the density of the support. To explain, the Von-Mises distribution is defined in on the unit circle [<span class="math inline">\(-\pi\)</span>, <span class="math inline">\(\pi\)</span>] so in order to have support that works to project that data into whatever space the boundary in the prior specifies the support has to be very dense.</p>
 <p>Note also that our rope_range is specified in the boundary units space, which is not necessarily the unit circle.</p>
 <details class="chunk-details" open><summary class="chunk-summary"><span class="chunk-summary-text">Code</span></summary>
@@ -487,8 +487,8 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <span id="cb8-9"><a href="#cb8-9" aria-hidden="true"></a><span class="kw">do.call</span>(rbind, vm_ex1_<span class="dv">1</span><span class="op">$</span>posterior)</span></code></pre></div>
 </details>
 <pre><code>##      mu       kappa    known_kappa n  boundary 
-## [1,] 47.91315 5.669037 1           31 numeric,2
-## [2,] 60.89136 6.899428 1           41 numeric,2</code></pre>
+## [1,] 50.04425 7.002869 1           31 numeric,2
+## [2,] 57.94215 8.385856 1           41 numeric,2</code></pre>
 <p>Single value traits work in the same way. Note that if we omit parts of the prior then they will be filled in with the default prior values.</p>
 <details class="chunk-details" open><summary class="chunk-summary"><span class="chunk-summary-text">Code</span></summary>
 <div class="sourceCode" id="cb10"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb10-1"><a href="#cb10-1" aria-hidden="true"></a><span class="kw">set.seed</span>(<span class="dv">42</span>)</span>
@@ -549,8 +549,8 @@ code > span.er { color: #a61717; background-color: #e3d2d2; }
 <div class="sourceCode" id="cb18"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb18-1"><a href="#cb18-1" aria-hidden="true"></a><span class="kw">do.call</span>(rbind, vm2_ex1<span class="op">$</span>posterior)</span></code></pre></div>
 </details>
 <pre><code>##      mu       kappa    n  boundary 
-## [1,] 49.4653  8.377015 31 numeric,2
-## [2,] 59.53219 6.063292 41 numeric,2</code></pre>
+## [1,] 49.46678 8.371329 31 numeric,2
+## [2,] 59.52812 6.07     41 numeric,2</code></pre>
 <details class="chunk-details" open><summary class="chunk-summary"><span class="chunk-summary-text">Code</span></summary>
 <div class="sourceCode" id="cb20"><pre class="sourceCode r"><code class="sourceCode r"><span id="cb20-1"><a href="#cb20-1" aria-hidden="true"></a><span class="kw">set.seed</span>(<span class="dv">42</span>)</span>
 <span id="cb20-2"><a href="#cb20-2" aria-hidden="true"></a>vm2_ex2 &lt;-<span class="st"> </span><span class="kw">conjugate</span>(</span>

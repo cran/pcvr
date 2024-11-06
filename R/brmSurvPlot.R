@@ -18,30 +18,28 @@
 #' @import viridis
 #' @importFrom stats as.formula
 #' @examples
-#'
 #' \donttest{
-#'   set.seed(123)
-#'   df <- growthSim("exponential",
-#'     n = 20, t = 50,
-#'     params = list("A" = c(1, 1), "B" = c(0.15, 0.1))
-#'   )
-#'   ss1 <- growthSS(
-#'     model = "survival weibull", form = y > 100 ~ time | id / group,
-#'     df = df, start = c(0, 5)
-#'   )
-#'   fit1 <- fitGrowth(ss1, iter = 600, cores = 2, chains = 2, backend = "cmdstanr")
-#'   brmSurvPlot(fit1, form = ss1$pcvrForm, df = ss1$df)
+#' set.seed(123)
+#' df <- growthSim("exponential",
+#'   n = 20, t = 50,
+#'   params = list("A" = c(1, 1), "B" = c(0.15, 0.1))
+#' )
+#' ss1 <- growthSS(
+#'   model = "survival weibull", form = y > 100 ~ time | id / group,
+#'   df = df, start = c(0, 5)
+#' )
+#' fit1 <- fitGrowth(ss1, iter = 600, cores = 2, chains = 2, backend = "cmdstanr")
+#' brmSurvPlot(fit1, form = ss1$pcvrForm, df = ss1$df)
 #'
-#'   # note that using the cumulative hazard to calculate survival is likely to underestimate
-#'   # survival in these plots if events do not start immediately.
-#'   ss2 <- growthSS(
-#'     model = "survival binomial", form = y > 100 ~ time | id / group,
-#'     df = df, start = c(-4, 3)
-#'   )
-#'   fit2 <- fitGrowth(ss2, iter = 600, cores = 2, chains = 2, backend = "cmdstanr")
-#'   brmSurvPlot(fit2, form = ss2$pcvrForm, df = ss2$df)
+#' # note that using the cumulative hazard to calculate survival is likely to underestimate
+#' # survival in these plots if events do not start immediately.
+#' ss2 <- growthSS(
+#'   model = "survival binomial", form = y > 100 ~ time | id / group,
+#'   df = df, start = c(-4, 3)
+#' )
+#' fit2 <- fitGrowth(ss2, iter = 600, cores = 2, chains = 2, backend = "cmdstanr")
+#' brmSurvPlot(fit2, form = ss2$pcvrForm, df = ss2$df)
 #' }
-#'
 #'
 #' @return Returns a ggplot showing a brms model's credible
 #' intervals and optionally the individual growth lines.
@@ -78,6 +76,7 @@ brmSurvPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, f
   parsed_form <- .parsePcvrForm(form, df)
   x <- parsed_form$x
   group <- parsed_form$group
+  facetGroups <- .no_dummy_labels(group, facetGroups)
   df <- parsed_form$data
   #* `set groups to use`
   if (is.null(groups)) {
@@ -122,7 +121,7 @@ brmSurvPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, f
   quantiles <- quantiles[quantiles[[group]] %in% groups, ]
   #* `Decide faceting`
   facetLayer <- NULL
-  if (facetGroups && length(unique(fitData[[group]])) > 1) {
+  if (facetGroups) {
     facetLayer <- ggplot2::facet_wrap(as.formula(paste0("~", group)))
   }
   #* `lengthen quantiles`
@@ -202,6 +201,7 @@ brmSurvPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, f
   parsed_form <- .parsePcvrForm(form, df)
   x <- parsed_form$x
   group <- parsed_form$group
+  facetGroups <- .no_dummy_labels(group, facetGroups)
   df <- parsed_form$data
   #* `further survival formula steps`
 
@@ -245,7 +245,7 @@ brmSurvPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, f
   }))
   #* `Decide faceting`
   facetLayer <- NULL
-  if (facetGroups && length(unique(fitData[[group]])) > 1) {
+  if (facetGroups) {
     facetLayer <- ggplot2::facet_wrap(as.formula(paste0("~", group)))
   }
   #* `lengthen quantiles`

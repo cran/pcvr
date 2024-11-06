@@ -120,6 +120,8 @@ ss <- growthSS(
   df = gomp, start = list("A" = 130, "B" = 15, "C" = 0.25)
 )
 
+ss
+
 ## ----eval=FALSE---------------------------------------------------------------
 #  fit_h <- fitGrowth(ss, iter = 1000, cores = 4, chains = 4, silent = 0)
 #  
@@ -130,6 +132,8 @@ ss <- growthSS(
   model = "gompertz", form = y ~ time | id / group, sigma = "linear",
   df = gomp, start = list("A" = 130, "B" = 15, "C" = 0.25)
 )
+
+ss
 
 ## ----eval=FALSE---------------------------------------------------------------
 #  fit_l <- fitGrowth(ss,
@@ -148,6 +152,8 @@ ss <- growthSS(
   df = gomp, start = list("A" = 130, "B" = 15, "C" = 0.25)
 )
 
+ss
+
 ## ----eval=FALSE---------------------------------------------------------------
 #  fit_s <- fitGrowth(ss,
 #    iter = 2000, cores = 4, chains = 4, silent = 0,
@@ -165,6 +171,8 @@ ss <- growthSS(
   ),
   type = "brms"
 )
+
+ss
 
 ## ----eval=FALSE---------------------------------------------------------------
 #  fit_g <- fitGrowth(ss,
@@ -274,6 +282,20 @@ priorPlots[[1]] / priorPlots[[2]] / priorPlots[[3]]
 ## -----------------------------------------------------------------------------
 twoPriors <- list("A" = c(100, 130), "B" = c(6, 12), "C" = c(0.5, 0.25))
 plotPrior(twoPriors, "gompertz", n = 100)[[1]]
+
+## -----------------------------------------------------------------------------
+set.seed(123)
+mv_df <- mvSim(dists = list(rnorm = list(mean = 100, sd = 30)), wide = FALSE)
+mv_df$group <- rep(c("a", "b"), times = 900)
+mv_df <- mv_df[mv_df$value > 0, ]
+mv_df$label <- as.numeric(gsub("sim_", "", mv_df$variable))
+
+ss1 <- mvSS(
+  model = "linear", form = label | value ~ group, df = mv_df,
+  start = list("A" = 5), type = "brms", spectral_index = "ci_rededge"
+)
+
+ss1
 
 ## -----------------------------------------------------------------------------
 set.seed(123)

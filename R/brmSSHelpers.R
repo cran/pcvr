@@ -16,7 +16,15 @@
   #* `if priors is a list`
   formatListPriorsRes <- .formatListPriors(priors, pars, df, group, USEGROUP)
   priors <- formatListPriorsRes[["priors"]]
+  # might need something like "what group does this value come from"?
   groupedPriors <- formatListPriorsRes[["groupedPriors"]]
+  #* `if multiple group variables then make interaction priors as Normal (0, sd)`
+  group_interaction_priors <- .groupInteractionPriors(group, formula, df, family, priors = priors)
+  #* `make lookup table for grouping and values of groups`
+  lookup <- data.frame(
+    group = unlist(lapply(group, function(x) rep(x, length(unique(df[[x]]))))),
+    value = unlist(lapply(group, function(x) unique(df[[x]])))
+  )
   #* `Arrange priors to match pars explicitly`
   if (length(setdiff(pars, names(priors))) > 0) {
     specified_pars <- intersect(names(priors), pars)
@@ -26,16 +34,28 @@
   } else {
     priors <- priors[pars]
   }
+  #* `replicate lookup table for pars`
+  lookup <- do.call(rbind, lapply(pars, function(pr) {
+    lookup$par <- pr
+    lookup
+  }))
   #* `Make stan strings`
   priorStanStrings <- .stanStringHelper(priors, pars, USEGROUP)
   #* `get default priors for intercept only distributional parameters`
   prior <- .initializePriorObject(sigma, family)
   #* `add priors for estimated parameters`
-  for (nm in names(priorStanStrings)) {
+  for (i in seq_along(priorStanStrings)) {
+    nm <- names(priorStanStrings)[i]
     dist <- priorStanStrings[[nm]]
     pr <- strsplit(nm, "_")[[1]][1]
     if (USEGROUP && groupedPriors) { # if there are groups and they have different priors
-      gr <- paste0(group, strsplit(nm, "_")[[1]][2])
+      grp <- group
+      grp_level <- strsplit(nm, "_")[[1]][2]
+      if (length(group) > 1) {
+        grp <- lookup[i, "group"]
+        grp_level <- lookup[i, "value"] # should always match previous grp_level definition
+      }
+      gr <- paste0(grp, grp_level)
       prior <- prior + brms::set_prior(dist, coef = gr, nlpar = pr)
       # currently cannot set lb for prior with coef
       # there is a clunky workaround but it wouldn't work with expected data types
@@ -46,11 +66,35 @@
     }
   }
   prior <- prior[-1, ] # remove flat prior on b
+  prior <- rbind(prior, group_interaction_priors)
   prior <- unique(prior)
   # could add intercept term prior here
   return(prior)
 }
 
+#' Helper function to make Normal priors on interaction terms between grouping variables
+#'
+#' @keywords internal
+#' @noRd
+
+.groupInteractionPriors <- function(group, formula, df, family, priors) {
+  if (length(group) > 1) {
+    default_prior <- .explicitDefaultPrior(formula, df, family)
+    default_interaction_prior <- default_prior[grepl(":", default_prior$coef), ]
+    tenth_of_priors <- lapply(priors, function(x) {
+      mean(x) / 10
+    })
+    for (nlp in unique(default_interaction_prior$nlpar)) {
+      sd <- ifelse(nlp %in% names(tenth_of_priors), tenth_of_priors[[nlp]], 3)
+      default_interaction_prior[
+        default_interaction_prior$nlpar == nlp, "prior"
+      ] <- paste0("normal(0, ", sd, ")")
+    }
+    return(default_interaction_prior)
+  } else {
+    return(NULL)
+  }
+}
 
 #' Helper function to fix numeric priors
 #'
@@ -74,7 +118,7 @@
   return(priors)
 }
 
-#' Helper function to fix numeric priors
+#' Helper function to standardize list priors
 #'
 #' @keywords internal
 #' @noRd
@@ -99,7 +143,10 @@
     # if any prior has multiple means then groupedPriors is TRUE
 
     if (groupedPriors) { # if more than one value is specified per parameter
-      ml <- max(unlist(lapply(priors, length)))
+      l <- sum(unlist(lapply(group, function(grp) {
+        length(unique(df[[grp]]))
+      })))
+      ml <- max(c(l, unlist(lapply(priors, length))))
       priors <- lapply(priors, function(p) rep(p, length.out = ml))
       if (any(unlist(lapply(priors, function(p) !is.null(names(p)))))) {
         # if any inner values are named then apply that to all priors
@@ -112,15 +159,19 @@
       if (any(unlist(lapply(priors, function(p) is.null(names(p)))))) {
         # if no inner values were named
         for (i in seq_along(priors)) {
-          names(priors[[i]]) <- unique(df[[group]])
+          names(priors[[i]]) <- unique(interaction(df[, group]))
         }
       }
     } else { # else is for prior of length 1 for each element,
       # in which case they need to replicated per groups
       # this should also handle non-grouped formulae
-      l <- length(unique(df[[group]]))
+      l <- sum(unlist(lapply(group, function(grp) {
+        length(unique(df[[grp]]))
+      })))
       priors <- lapply(priors, rep, length.out = l)
-      nms <- unique(df[[group]])
+      nms <- unlist(lapply(group, function(grp) {
+        unique(df[[grp]])
+      }))
       if (USEGROUP) {
         for (i in seq_along(priors)) {
           names(priors[[i]]) <- nms
@@ -138,22 +189,24 @@
 #' @noRd
 
 .stanStringHelper <- function(priors, pars, USEGROUP) {
-  priorStanStrings <- lapply(pars, function(par) {
-    if (!grepl("changePoint|I$", par)) {
-      paste0("lognormal(log(", priors[[par]], "), 0.25)") # growth parameters are LN
+  if (!is.null(pars)) {
+    priorStanStrings <- lapply(pars, function(par) {
+      if (!grepl("changePoint|I$", par)) {
+        paste0("lognormal(log(", priors[[par]], "), 0.25)") # growth parameters are LN
+      } else {
+        paste0("student_t(5,", priors[[par]], ", 3)") # changepoints/intercepts are T_5(mu, 3)
+      }
+    })
+    priorStanStrings <- unlist(priorStanStrings)
+    parNames <- rep(names(priors), each = length(priors[[1]]))
+    if (USEGROUP) {
+      groupNames <- rep(names(priors[[1]]), length.out = length(priorStanStrings))
+      names(priorStanStrings) <- paste(parNames, groupNames, sep = "_")
     } else {
-      paste0("student_t(5,", priors[[par]], ", 3)") # changepoints/intercepts are T_5(mu, 3)
+      names(priorStanStrings) <- parNames
     }
-  })
-  priorStanStrings <- unlist(priorStanStrings)
-  parNames <- rep(names(priors), each = length(priors[[1]]))
-  if (USEGROUP) {
-    groupNames <- rep(names(priors[[1]]), length.out = length(priorStanStrings))
-    names(priorStanStrings) <- paste(parNames, groupNames, sep = "_")
-  } else {
-    names(priorStanStrings) <- parNames
+    return(priorStanStrings)
   }
-  return(priorStanStrings)
 }
 
 
@@ -265,7 +318,7 @@
 #' @noRd
 
 .brms_form_logistic <- function(x, y, group, dpar = FALSE,
-                                nTimes = NULL, useGroup = TRUE, prior = NULL, int = FALSE) {
+                                nTimes = NULL, useGroup = TRUE, prior = NULL, int = FALSE, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -297,7 +350,7 @@
 #' @noRd
 
 .brms_form_gompertz <- function(x, y, group, dpar = FALSE,
-                                nTimes = NULL, useGroup = TRUE, prior = NULL, int) {
+                                nTimes = NULL, useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -330,7 +383,8 @@
 
 
 .brms_form_doublelogistic <- function(x, y, group, dpar = FALSE,
-                                      nTimes = NULL, useGroup = TRUE, prior = NULL, int) {
+                                      nTimes = NULL, useGroup = TRUE,
+                                      prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -371,7 +425,8 @@
 
 
 .brms_form_doublegompertz <- function(x, y, group, dpar = FALSE,
-                                      nTimes = NULL, useGroup = TRUE, prior = NULL, int) {
+                                      nTimes = NULL, useGroup = TRUE,
+                                      prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -412,7 +467,7 @@
 
 
 .brms_form_monomolecular <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                                     useGroup = TRUE, prior = NULL, int) {
+                                     useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -442,7 +497,7 @@
 
 
 .brms_form_exponential <- function(x, y, group, dpar = FALSE,
-                                   nTimes = NULL, useGroup = TRUE, prior = NULL, int) {
+                                   nTimes = NULL, useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -472,9 +527,9 @@
 
 
 .brms_form_linear <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                              useGroup = TRUE, prior = NULL, int) {
+                              useGroup = TRUE, prior = NULL, int, force_nl = FALSE) {
   if (dpar) {
-    if (!is.null(prior) && any(grepl(paste0(y, "A"), names(prior)))) {
+    if (!is.null(prior) && any(grepl(paste0(y, "A"), names(prior))) || force_nl) {
       #* use non-linear parameterization with subA
       if (int) {
         form <- brms::nlf(stats::as.formula(paste0(y, " ~ ", y, "I + (", y, "A", "*", x, ")")))
@@ -484,12 +539,15 @@
         pars <- c(paste0(y, "A"))
       }
     } else {
-      #* linear parameterization using x directly, no intercept option
+      #* linear parameterization using x directly
       if (int) {
-        form <- brms::nlf(as.formula(paste0(y, " ~ ", y, "I + (", x, "+", x, ":", group, ")")))
+        form <- brms::nlf(as.formula(paste0(
+          y, " ~ ", y, "I + (", x, "+", x, ":",
+          paste(group, collapse = ":"), ")"
+        )))
         pars <- paste0(y, "I")
       } else {
-        form <- as.formula(paste0(y, " ~ ", x, "+", x, ":", group))
+        form <- as.formula(paste0(y, " ~ ", x, "+", x, ":", paste(group, collapse = ":")))
         pars <- c()
       }
     }
@@ -512,7 +570,7 @@
 
 
 .brms_form_logarithmic <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                                   useGroup = TRUE, prior = NULL, int) {
+                                   useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(y, " ~ ", y, "I + (", y, "A*log(", x, "))")))
@@ -540,7 +598,7 @@
 
 
 .brms_form_powerlaw <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                                useGroup = TRUE, prior = NULL, int) {
+                                useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(y, " ~ ", y, "I + (", y, "A*", x, "^", y, "B)")))
@@ -567,11 +625,12 @@
 
 
 .brms_form_gam <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                           useGroup = TRUE, prior = NULL, int) {
+                           useGroup = TRUE, prior = NULL, int, ...) {
   if (useGroup) {
-    by <- paste0(", by = ", group)
+    by <- paste0(", by = ", paste(group, collapse = ".")) # special variable that is made if there are
+    # multiple groups and a gam involved.
   } else {
-    by <- ","
+    by <- NULL
   }
   if (nTimes < 11) {
     k <- paste0(", k = ", nTimes)
@@ -591,9 +650,9 @@
 
 
 .brms_form_int <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                           useGroup = TRUE, prior = NULL, int) {
+                           useGroup = TRUE, prior = NULL, int, ...) {
   if (useGroup) {
-    rhs <- paste0("0 + ", group)
+    rhs <- paste0("0 + ", paste(group, collapse = "+"))
   } else {
     rhs <- paste0("1")
   }
@@ -609,7 +668,7 @@
 
 
 .brms_form_not_estimated <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                                     useGroup = TRUE, prior = NULL, int) {
+                                     useGroup = TRUE, prior = NULL, int, ...) {
   form <- stats::as.formula(paste0(y, " ~ 1"))
   pars <- c()
   return(list(form = form, pars = pars))
@@ -639,7 +698,7 @@
 #' @noRd
 
 .brms_form_frechet <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                               useGroup = TRUE, prior = NULL, int) {
+                               useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -670,7 +729,7 @@
 #' @noRd
 
 .brms_form_weibull <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                               useGroup = TRUE, prior = NULL, int) {
+                               useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -701,7 +760,7 @@
 #' @noRd
 
 .brms_form_gumbel <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                              useGroup = TRUE, prior = NULL, int) {
+                              useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -732,7 +791,7 @@
 #' @noRd
 
 .brms_form_bragg <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                             useGroup = TRUE, prior = NULL, int) {
+                             useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -763,7 +822,7 @@
 #' @noRd
 
 .brms_form_lorentz <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                               useGroup = TRUE, prior = NULL, int) {
+                               useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -794,7 +853,7 @@
 #' @noRd
 
 .brms_form_beta <- function(x, y, group, dpar = FALSE, nTimes = NULL,
-                            useGroup = TRUE, prior = NULL, int) {
+                            useGroup = TRUE, prior = NULL, int, ...) {
   if (dpar) {
     if (int) {
       form <- brms::nlf(stats::as.formula(paste0(
@@ -811,12 +870,16 @@
     }
   } else {
     if (int) {
-      form <- stats::as.formula(paste0(y, " ~ I + A * (((", x, " - D) / (C - D)) * ((E - ", x,
-                                       ") / (E - C)) ^ ((E - C) / (C - D))) ^ B"))
+      form <- stats::as.formula(paste0(
+        y, " ~ I + A * (((", x, " - D) / (C - D)) * ((E - ", x,
+        ") / (E - C)) ^ ((E - C) / (C - D))) ^ B"
+      ))
       pars <- LETTERS[c(1:5, 9)]
     } else {
-      form <- stats::as.formula(paste0(y, " ~ A * (((", x, " - D) / (C - D)) * ((E - ", x,
-                                       ") / (E - C)) ^ ((E - C) / (C - D))) ^ B"))
+      form <- stats::as.formula(paste0(
+        y, " ~ A * (((", x, " - D) / (C - D)) * ((E - ", x,
+        ") / (E - C)) ^ ((E - C) / (C - D))) ^ B"
+      ))
       pars <- LETTERS[1:5]
     }
   }

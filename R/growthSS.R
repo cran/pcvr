@@ -1,5 +1,6 @@
-#' Ease of use growth model helper function. Output from this should be passed to \link{fitGrowth} to
-#' fit the specified model.
+#' Ease of use growth model helper function.
+#'
+#' Output from this should be passed to \link{fitGrowth} to fit the specified model.
 #'
 #' @param model The name of a model as a character string.
 #'  Supported options are c("logistic", "gompertz", "weibull", "frechet", "gumbel", "monomolecular",
@@ -52,12 +53,17 @@
 #'  so autocorrelation using the "nlme" backend works at the group level, so will slightly underestimate
 #'  the autocorrelation at the individual level. If group has only one level or is not included then
 #'  it will be ignored in formulas for growth and variance (this may be the case if
-#'  you split data before fitting models to be able to run more smaller models each more quickly).
+#'  you split data before fitting models to be able to run more smaller models each more quickly). To
+#'  include multiple grouping variables they should be separated with "+" as in
+#'  \code{y~time|individual/groupingVariable1 + groupingVariable2}. For some backends multiple grouping
+#'  variables will be combined into a single factor of their interaction.
 #'  Hierarchical models can be specified for the brms backend as
 #'  \code{y~time+other_covariate|individual/group} in which case the parameters of the main growth model
 #'  will themselves be estimated by models as specified in the \code{hierarchy} argument. For instance,
 #'  if normally "A" had an intercept for each \code{group}, now it would be predicted as
-#'  \code{A ~ AI + AA * covariate} where AI and AA now have an intercept for each \code{group}.
+#'  \code{A ~ AI + AA * covariate} where AI and AA now have an intercept for each \code{group}. Note
+#'  that if you specify a hierarchical model then priors are required for AI and AA in the previous
+#'  example.
 #' @param sigma Other models for distributional parameters.
 #' This argument is only used with "brms" and "nlme" models and is handled differently for each.
 #' When type="brms" this can be supplied as a model or as a list of models.
@@ -80,6 +86,7 @@
 #' \code{nlme::varIdent}, \code{nlme::varPower}, or \code{nlme::varExp} respectively where "power"
 #' is the default.
 #' @param df A dataframe to use. Must contain all the variables listed in the formula.
+#' Note that rows with NA or infinite values in x, y, or hierarchical predictors are removed.
 #' @param pars Optionally specify which parameters should change by group. Not this is model
 #' dependent and is not implemented for brms models due to their more flexible hypothesis testing.
 #' @param start An optional named list of starting values OR means for prior distributions.
@@ -217,7 +224,9 @@
 #' then this may be helpful, one situation may be canopy coverage percentage which is naturally bounded
 #' at an upper and lower limit.
 #' To specify these limits add square brackets to the Y term with upper and lower limits such as
-#' \code{"y[0,100] ~ time|id/group"}.
+#' \code{"y[0,100] ~ time|id/group"}. Other "Additional response information" such as resp_weights or
+#' standard errors can be specified using the \code{brms} backend, with those options documented fully
+#' in the \code{brms::brmsformula} details.
 #'
 #' There are also three supported submodel options for \code{nlme} models, but a \code{varFunc} object
 #' can also be supplied, see \code{?nlme::varClasses}.
@@ -301,7 +310,8 @@
 #' \code{pcvrForm} The form argument unchanged.
 #'
 #' For all models the type and model are also returned for simplicity downstream.
-#'
+#' @seealso \link{fitGrowth} for fitting the model specified by this list and \link{mvSS}
+#' for the multi-value trait equivalent.
 #' @examples
 #'
 #'
@@ -319,10 +329,10 @@
 #' # the next step would typically be compiling/fitting the model
 #' # here we use very few chains and very few iterations for speed, but more of both is better.
 #' \donttest{
-#'   fit_test <- fitGrowth(ss,
-#'     iter = 500, cores = 1, chains = 1, backend = "cmdstanr",
-#'     control = list(adapt_delta = 0.999, max_treedepth = 20)
-#'   )
+#' fit_test <- fitGrowth(ss,
+#'   iter = 500, cores = 1, chains = 1, backend = "cmdstanr",
+#'   control = list(adapt_delta = 0.999, max_treedepth = 20)
+#' )
 #' }
 #'
 #'
@@ -345,7 +355,6 @@
 #' ex2_ss$prior # has coef level grouping for priors
 #' ex2_ss$formula # specifies an A intercept for each group and splines by group for sigma
 #'
-#'
 #' @export
 
 growthSS <- function(model, form, sigma = NULL, df, start = NULL,
@@ -363,6 +372,7 @@ growthSS <- function(model, form, sigma = NULL, df, start = NULL,
   int_res <- .intModelHelper(model)
   int <- int_res$int
   model <- int_res$model
+  df <- as.data.frame(df)
 
   if (survivalBool) {
     if (type_matched == "brms") {
@@ -377,8 +387,10 @@ growthSS <- function(model, form, sigma = NULL, df, start = NULL,
     }
   } else {
     if (type_matched == "brms") {
-      res <- .brmSS(model = model, form = form, sigma = sigma, df = df, priors = start, int = int,
-                    hierarchy = hierarchy)
+      res <- .brmSS(
+        model = model, form = form, sigma = sigma, df = df, priors = start, int = int,
+        hierarchy = hierarchy
+      )
     } else if (type_matched %in% c("nlrq", "nls")) {
       res <- .nlrqSS(
         model = model, form = form, tau = tau, df = df, start = start, pars = pars,
@@ -388,8 +400,10 @@ growthSS <- function(model, form, sigma = NULL, df, start = NULL,
       if (is.null(sigma)) {
         sigma <- "power"
       }
-      res <- .nlmeSS(model = model, form = form, sigma = sigma, df = df, pars = pars,
-                     start = start, int = int)
+      res <- .nlmeSS(
+        model = model, form = form, sigma = sigma, df = df, pars = pars,
+        start = start, int = int
+      )
     } else if (type_matched == "mgcv") {
       res <- .mgcvSS(model = model, form = form, df = df)
     }
@@ -397,5 +411,6 @@ growthSS <- function(model, form, sigma = NULL, df, start = NULL,
   }
   res$model <- model
   res$call <- match.call()
+  res <- pcvrss(res)
   return(res)
 }

@@ -132,12 +132,12 @@
 #'   labs(title = "Power Law")
 #'
 #' simdf <- growthSim("bragg",
-#' n = 20, t = 100,
-#' list("A" = c(10, 15), "B" = c(0.01, 0.02), "C" = c(50, 60))
+#'   n = 20, t = 100,
+#'   list("A" = c(10, 15), "B" = c(0.01, 0.02), "C" = c(50, 60))
 #' )
 #' ggplot(simdf, aes(time, y, group = interaction(group, id))) +
-#' geom_line(aes(color = group)) +
-#' labs(title = "bragg")
+#'   geom_line(aes(color = group)) +
+#'   labs(title = "bragg")
 #'
 #' # simulating models from segmented growth models
 #'
@@ -172,7 +172,6 @@
 #' ggplot(simdf, aes(time, y, group = interaction(group, id))) +
 #'   geom_line(aes(color = group)) +
 #'   labs(title = "linear + linear + logistic")
-#'
 #'
 #' @details
 #'     The \code{params} argument requires some understanding of how each growth model is parameterized.
@@ -352,7 +351,8 @@ growthSim <- function(
       }
       n_df <- do.call(rbind, lapply(seq_along(iterChangepointsRand), function(g) {
         if (u == length(component_models)) {
-          gt <- t - max(df1[df1$id == paste0("id_", i), "time"])
+          grp <- unique(df1$group)[g]
+          gt <- t - max(df1[df1$id == paste0("id_", i) & df1$group == grp, "time"])
         } else {
           gt <- iterChangepointsRand[[g]]
         }
@@ -528,7 +528,7 @@ gsi_lorentz <- function(x, pars, noise) {
   b_r <- pars[["B"]] + rnorm(1, mean = 0, sd = noise[["B"]])
   c_r <- pars[["C"]] + rnorm(1, mean = 0, sd = noise[["C"]])
   # a is max response, b is precision, c is x position of max response
-  return(a_r / (1 + b_r * (x - c_r) ^ 2))
+  return(a_r / (1 + b_r * (x - c_r)^2))
 }
 gsi_beta <- function(x, pars, noise) {
   a_r <- pars[["A"]] + rnorm(1, mean = 0, sd = noise[["A"]])
@@ -536,6 +536,6 @@ gsi_beta <- function(x, pars, noise) {
   c_r <- pars[["C"]] + rnorm(1, mean = 0, sd = noise[["C"]])
   d_r <- pars[["D"]] + rnorm(1, mean = 0, sd = noise[["D"]])
   e_r <- pars[["E"]] + rnorm(1, mean = 0, sd = noise[["E"]])
-  y <- a_r * (((x - d_r) / (c_r - d_r)) * ((e_r - x) / (e_r - c_r)) ^ ((e_r - c_r) / (c_r - d_r))) ^ b_r
+  y <- a_r * (((x - d_r) / (c_r - d_r)) * ((e_r - x) / (e_r - c_r))^((e_r - c_r) / (c_r - d_r)))^b_r
   return(y)
 }

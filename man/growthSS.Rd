@@ -2,8 +2,7 @@
 % Please edit documentation in R/growthSS.R
 \name{growthSS}
 \alias{growthSS}
-\title{Ease of use growth model helper function. Output from this should be passed to \link{fitGrowth} to
-fit the specified model.}
+\title{Ease of use growth model helper function.}
 \usage{
 growthSS(
   model,
@@ -70,12 +69,17 @@ The right hand side needs at least the x variable
  so autocorrelation using the "nlme" backend works at the group level, so will slightly underestimate
  the autocorrelation at the individual level. If group has only one level or is not included then
  it will be ignored in formulas for growth and variance (this may be the case if
- you split data before fitting models to be able to run more smaller models each more quickly).
+ you split data before fitting models to be able to run more smaller models each more quickly). To
+ include multiple grouping variables they should be separated with "+" as in
+ \code{y~time|individual/groupingVariable1 + groupingVariable2}. For some backends multiple grouping
+ variables will be combined into a single factor of their interaction.
  Hierarchical models can be specified for the brms backend as
  \code{y~time+other_covariate|individual/group} in which case the parameters of the main growth model
  will themselves be estimated by models as specified in the \code{hierarchy} argument. For instance,
  if normally "A" had an intercept for each \code{group}, now it would be predicted as
- \code{A ~ AI + AA * covariate} where AI and AA now have an intercept for each \code{group}.}
+ \code{A ~ AI + AA * covariate} where AI and AA now have an intercept for each \code{group}. Note
+ that if you specify a hierarchical model then priors are required for AI and AA in the previous
+ example.}
 
 \item{sigma}{Other models for distributional parameters.
 This argument is only used with "brms" and "nlme" models and is handled differently for each.
@@ -99,7 +103,8 @@ the 2nd then \code{sigma = list("not_estimated", "model")} would allow for that.
 \code{nlme::varIdent}, \code{nlme::varPower}, or \code{nlme::varExp} respectively where "power"
 is the default.}
 
-\item{df}{A dataframe to use. Must contain all the variables listed in the formula.}
+\item{df}{A dataframe to use. Must contain all the variables listed in the formula.
+Note that rows with NA or infinite values in x, y, or hierarchical predictors are removed.}
 
 \item{start}{An optional named list of starting values OR means for prior distributions.
 If this is not provided then starting values are picked with \code{stats::selfStart}.
@@ -184,8 +189,7 @@ data in a similar way as shown in \code{stats::selfStart} models.
 For all models the type and model are also returned for simplicity downstream.
 }
 \description{
-Ease of use growth model helper function. Output from this should be passed to \link{fitGrowth} to
-fit the specified model.
+Output from this should be passed to \link{fitGrowth} to fit the specified model.
 }
 \details{
 Default priors are not provided, but these can serve as starting points for each distribution.
@@ -285,7 +289,9 @@ If you do have a limited phenotype (besides the normal positive constraint for g
 then this may be helpful, one situation may be canopy coverage percentage which is naturally bounded
 at an upper and lower limit.
 To specify these limits add square brackets to the Y term with upper and lower limits such as
-\code{"y[0,100] ~ time|id/group"}.
+\code{"y[0,100] ~ time|id/group"}. Other "Additional response information" such as resp_weights or
+standard errors can be specified using the \code{brms} backend, with those options documented fully
+in the \code{brms::brmsformula} details.
 
 There are also three supported submodel options for \code{nlme} models, but a \code{varFunc} object
 can also be supplied, see \code{?nlme::varClasses}.
@@ -343,10 +349,10 @@ ss$initfun()
 # the next step would typically be compiling/fitting the model
 # here we use very few chains and very few iterations for speed, but more of both is better.
 \donttest{
-  fit_test <- fitGrowth(ss,
-    iter = 500, cores = 1, chains = 1, backend = "cmdstanr",
-    control = list(adapt_delta = 0.999, max_treedepth = 20)
-  )
+fit_test <- fitGrowth(ss,
+  iter = 500, cores = 1, chains = 1, backend = "cmdstanr",
+  control = list(adapt_delta = 0.999, max_treedepth = 20)
+)
 }
 
 
@@ -369,7 +375,10 @@ ex2_ss <- growthSS(
 ex2_ss$prior # has coef level grouping for priors
 ex2_ss$formula # specifies an A intercept for each group and splines by group for sigma
 
-
+}
+\seealso{
+\link{fitGrowth} for fitting the model specified by this list and \link{mvSS}
+for the multi-value trait equivalent.
 }
 \keyword{Bayesian}
 \keyword{brms}

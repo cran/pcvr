@@ -40,7 +40,10 @@ plotPrior(priors)
 
 plotPrior(priors, "gompertz")[[1]]
 
-
+}
+\seealso{
+\link{barg} for Bayesian model reporting metrics, \link{growthSim} for simulating data using
+similar specification.
 }
 \keyword{Bayesian}
 \keyword{brms}

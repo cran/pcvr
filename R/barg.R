@@ -77,8 +77,8 @@
 #' @return A named list containing Rhat, ESS, NEFF, and Prior/Posterior Predictive plots.
 #' See details for interpretation.
 #' @importFrom rlang is_installed
-#'
-#' @examplesIf rlang::is_installed(c("brms", "cmdstanr"))
+#' @seealso \link{plotPrior} for visual prior predictive checks.
+#' @examples
 #' \donttest{
 #' simdf <- growthSim("logistic",
 #'   n = 20, t = 25,
@@ -86,8 +86,10 @@
 #' )
 #' ss <- growthSS(
 #'   model = "logistic", form = y ~ time | id / group, sigma = "logistic",
-#'   df = simdf, start = list("A" = 130, "B" = 12, "C" = 3,
-#'                            "sigmaA" = 20, "sigmaB" = 10, "sigmaC" = 2), type = "brms"
+#'   df = simdf, start = list(
+#'     "A" = 130, "B" = 12, "C" = 3,
+#'     "sigmaA" = 20, "sigmaB" = 10, "sigmaC" = 2
+#'   ), type = "brms"
 #' )
 #' fit_test <- fitGrowth(ss,
 #'   iter = 600, cores = 1, chains = 1, backend = "cmdstanr",
