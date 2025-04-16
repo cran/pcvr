@@ -15,7 +15,7 @@
 #' )
 #' .conj_lognormal_mv(
 #'   s1 = mv_ln[1:30, -1],
-#'   priors = list(mu_log = c(log(10)), n = c(1), sigma_log = c(log(3))),
+#'   priors = list(mu_log = c(log(10)), sigma_log = c(log(3))),
 #'   plot = FALSE, cred.int.level = 0.9
 #' )
 #'
@@ -24,12 +24,13 @@
 #' @noRd
 
 .conj_lognormal_mv <- function(s1 = NULL, priors = NULL,
-                               plot = FALSE, support = NULL, cred.int.level = NULL,
+                               support = NULL, cred.int.level = NULL,
                                calculatingSupport = FALSE) {
   out <- list()
   #* `make default prior if none provided`
+  priors <- .convert_gaussian_priors(priors)
   if (is.null(priors)) {
-    priors <- list(mu = 0, sd = 5)
+    priors <- list(mu = 0, sd = 10)
   }
   #* `Reorder columns if they are not in the numeric order`
   histColsBin <- as.numeric(sub("[a-zA-Z_.]+", "", colnames(s1)))
@@ -49,22 +50,26 @@
     #* sufficient stats: n, mean of log data | precision
     n <- length(X1)
     m <- priors$mu[1]
-    p <- 1 / (priors$sd[1]^2) # precision
+    prior_prec <- 1 / (priors$sd[1]^2) # precision from priors
+    p <- 1 / (var(X1)) # precision from data
     mu_prime <- ((m * p) + (n * p * mu_x1)) / (p + (n * p))
-    precision_prime <- (p + (n * p))
+    precision_prime <- (prior_prec + (n * p))
     var_prime <- 1 / precision_prime
     sd_prime <- sqrt(var_prime)
-    return(list("mu" = mu_prime, "sd" = sd_prime, "ln_sd" = sigma_x1))
+    return(list("mu" = mu_prime, "sd" = sd_prime, "ln_sd" = sigma_x1, "obs_prec" = p))
   })
   #* `Unlist parameters`
   mu_ls_prime <- mean(unlist(lapply(rep_distributions, function(i) {
-    i$mu
+    return(i$mu)
   })))
   sigma_ls_prime <- mean(unlist(lapply(rep_distributions, function(i) {
-    i$sd
+    return(i$sd)
   })))
   ln_sigma_prime <- mean(unlist(lapply(rep_distributions, function(i) {
-    i$ln_sd
+    return(i$ln_sd)
+  })))
+  obs_sd <- mean(unlist(lapply(rep_distributions, function(i) {
+    return(1 / ((i$obs_prec) ^ 2))
   })))
 
   #* `Define support if it is missing`
@@ -88,17 +93,19 @@
   out$posterior$mu <- mu_ls_prime
   out$posterior$sd <- sigma_ls_prime
   out$posterior$lognormal_sigma <- ln_sigma_prime
+  out$prior <- priors
   #* `Make Posterior Draws`
   out$posteriorDraws <- stats::rnorm(10000, mu_ls_prime, sigma_ls_prime)
   out$pdf <- pdf1
   #* `save s1 data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = support,
-      "prob" = pdf1,
-      "sample" = rep("Sample 1", length(support))
-    )
-  }
+  out$plot_list <- list(
+    "range" = range(support),
+    "ddist_fun" = "stats::dnorm",
+    "priors" = list("mean" = priors$mu[1],  "sd" = priors$sd[1]),
+    "parameters" = list("mean" = mu_ls_prime,
+                        "sd" = sigma_ls_prime),
+    "given" = list("sdlog" = log(obs_sd))
+  )
   return(out)
 }
 
@@ -121,12 +128,13 @@
 #' @noRd
 
 .conj_lognormal_sv <- function(s1 = NULL, priors = NULL,
-                               plot = FALSE, support = NULL, cred.int.level = NULL,
+                               support = NULL, cred.int.level = NULL,
                                calculatingSupport = FALSE) {
   out <- list()
   #* `make default prior if none provided`
+  priors <- .convert_gaussian_priors(priors)
   if (is.null(priors)) {
-    priors <- list(mu = 0, sd = 5)
+    priors <- list(mu = 0, sd = 10)
   }
   #* `Get mean of s1`
   x_bar <- mean(s1)
@@ -137,9 +145,11 @@
   #* sufficient stats: n, mean of log data | precision
   n <- length(s1)
   m <- priors$mu[1]
-  p <- 1 / (priors$sd[1]^2) # precision
+  prior_prec <- 1 / (priors$sd[1]^2) # precision from priors
+  p <- 1 / (var(s1)) # precision from data
+  obs_sd <- sd(s1)
   mu_prime <- ((m * p) + (n * p * mu_s1)) / (p + (n * p))
-  precision_prime <- (p + (n * p))
+  precision_prime <- (prior_prec + (n * p))
   var_prime <- 1 / precision_prime
   sd_prime <- sqrt(var_prime)
   #* `Define support if it is missing`
@@ -157,16 +167,18 @@
   out$posterior$mu <- mu_prime
   out$posterior$sd <- sd_prime
   out$posterior$lognormal_sigma <- sigma_s1 # returning this as a number, not a distribution
+  out$prior <- priors
   #* `Make Posterior Draws`
   out$posteriorDraws <- rnorm(10000, mu_prime, sd_prime)
   out$pdf <- pdf1
   #* `save s1 data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = support,
-      "prob" = pdf1,
-      "sample" = rep("Sample 1", length(support))
-    )
-  }
+  out$plot_list <- list(
+    "range" = range(support),
+    "ddist_fun" = "stats::dnorm",
+    "priors" = list("mean" = priors$mu[1],  "sd" = priors$sd[1]),
+    "parameters" = list("mean" = mu_prime,
+                        "sd" = sd_prime),
+    "given" = list("sdlog" = log(obs_sd))
+  )
   return(out)
 }

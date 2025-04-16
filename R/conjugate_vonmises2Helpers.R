@@ -18,7 +18,7 @@
 #' @noRd
 
 .conj_vonmises2_sv <- function(s1 = NULL, priors = NULL,
-                               plot = FALSE, support = NULL, cred.int.level = NULL,
+                               support = NULL, cred.int.level = NULL,
                                calculatingSupport = FALSE) {
   #* `set support to NULL to avoid default length of 10000`
   support <- NULL
@@ -42,7 +42,7 @@
   #* `rescale data to [-pi, pi] according to boundary`
   s1 <- .boundary.to.radians(x = s1, boundary = priors$boundary)
   #* `rescale prior on mu to [-pi, pi] according to boundary`
-  mu_radians <- .boundary.to.radians(x = priors$mu, boundary = priors$boundary)
+  mu_radians <- .boundary.to.radians(x = priors$mu[1], boundary = priors$boundary)
   #* `Raise error if the boundary is wrong and data is not on [-pi, pi]`
   if (any(abs(s1) > pi)) {
     stop(paste0(
@@ -63,10 +63,10 @@
   #* ***** `Updating Kappa`
   n1 <- length(s1)
   obs_kappa <- .unbiased.kappa(s1, n1)
-  kappa_prime <- ((obs_kappa * n1) + (priors$kappa * priors$n)) / (n1 + priors$n)
+  kappa_prime <- ((obs_kappa * n1) + (priors$kappa[1] * priors$n[1])) / (n1 + priors$n[1])
   #* ***** `Updating vMF for mu using kappa prime`
   #* `Get weighted mean of data and prior for half tangent adjustment`
-  cm <- .circular.mean(c(s1, mu_radians), w = c(rep(1, length(s1)), priors$n))
+  cm <- .circular.mean(c(s1, mu_radians), w = c(rep(1, length(s1)), priors$n[1]))
   unitCircleAdj <- ifelse(abs(cm) <= pi / 2, 0, pi)
   unitCircleAdj <- ifelse(cm > 0, 1, -1) * unitCircleAdj
   #* `Update prior parameters`
@@ -108,18 +108,20 @@
   )
   out$posterior$mu <- hde_boundary # rescaled mu_prime
   out$posterior$kappa <- kappa_prime
-  out$posterior$n <- priors$n + length(s1)
+  out$posterior$n <- priors$n[1] + length(s1)
   out$posterior$boundary <- priors$boundary
+  out$prior <- priors
   #* `Store Posterior Draws`
   out$posteriorDraws <- draws_boundary
   out$pdf <- pdf1
   #* `keep data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = support_boundary, "prob" = pdf1,
-      "sample" = rep("Sample 1", length(support_boundary))
-    )
-  } # tests on this seem to work fine
+  out$plot_list <- list(
+    "range" = range(support),
+    "ddist_fun" = "brms::dvon_mises",
+    "priors" = list("mu" = priors$mu[1], "kappa" = priors$kappa[1]),
+    "parameters" = list("mu" = mu_prime,
+                        "kappa" = kappa_prime)
+  )
   return(out)
 }
 
@@ -143,7 +145,7 @@
 #' @noRd
 
 .conj_vonmises2_mv <- function(s1 = NULL, priors = NULL,
-                               plot = FALSE, support = NULL, cred.int.level = NULL,
+                               support = NULL, cred.int.level = NULL,
                                calculatingSupport = FALSE) {
   #* `set support to NULL to avoid default length of 10000`
   support <- NULL
@@ -235,16 +237,18 @@
   out$posterior$kappa <- kappa_prime
   out$posterior$n <- priors$n + nrow(s1)
   out$posterior$boundary <- priors$boundary
+  out$prior <- priors
   #* `Store Posterior Draws`
   out$posteriorDraws <- draws_boundary
   out$pdf <- pdf1
   #* `keep data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = support_boundary, "prob" = pdf1,
-      "sample" = rep("Sample 1", length(support_boundary))
-    )
-  }
+  out$plot_list <- list(
+    "range" = range(support),
+    "ddist_fun" = "brms::dvon_mises",
+    "priors" = list("mu" = priors$mu[1], "kappa" = priors$kappa[1]),
+    "parameters" = list("mu" = mu_prime,
+                        "kappa" = kappa_prime)
+  )
   return(out)
 }
 
@@ -262,13 +266,14 @@
 #' @noRd
 
 .bessel.inv <- function(x) {
-  ifelse(0 <= x & x < 0.53,
+  y <- ifelse(0 <= x & x < 0.53,
     2 * x + x^3 + (5 * x^5) / 6,
     ifelse(x < 0.85,
       -0.4 + 1.39 * x + 0.43 / (1 - x),
       1 / (x^3 - 4 * x^2 + 3 * x)
     )
   )
+  return(y)
 }
 
 #' @description
@@ -296,5 +301,5 @@
       kappa <- ((n - 1)^3 * kappa.biased) / (n^3 + n)
     }
   }
-  kappa
+  return(kappa)
 }

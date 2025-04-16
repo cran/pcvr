@@ -91,8 +91,8 @@ test_that("conjugate T method is consistent for SV and MV", {
     0,
     tolerance = 0.1
   )
-  v1 <- as.numeric(out$posteriors[c(1, 3), "s2"])
-  v2 <- as.numeric(out$posteriors[c(2, 4), "s2"])
+  v1 <- as.numeric(out$posteriors[c(1, 3), "sd"])
+  v2 <- as.numeric(out$posteriors[c(2, 4), "sd"])
   expect_equal(
     abs(diff(v1) / mean(v1)),
     0, # diff should be 0, scaled or not
@@ -127,8 +127,8 @@ test_that("conjugate Gaussian method is consistent for SV and MV", {
     0,
     tolerance = 0.1
   )
-  v1 <- as.numeric(out$posteriors[c(1, 3), "s2"])
-  v2 <- as.numeric(out$posteriors[c(2, 4), "s2"])
+  v1 <- as.numeric(out$posteriors[c(1, 3), "sd"])
+  v2 <- as.numeric(out$posteriors[c(2, 4), "sd"])
   expect_equal(
     abs(diff(v1) / mean(v1)),
     0, # diff should be 0, scaled or not
@@ -225,11 +225,11 @@ test_that("conjugate lognormal method is consistent for SV and MV", {
 #* evaluation of any bias that exists between the mv and sv methods
 #* Sometimes the apparent bias is more related to how mvSim works
 #* than the actual updating though.
-if (FALSE) {
+if (Sys.getenv("ALL_PCVR_TESTS") == "run") {
   library(brms)
   library(ggplot2)
   res_main <- do.call(rbind, lapply(c(10, 25, 50), function(n) {
-    do.call(rbind, parallel::mclapply(1:1000, function(i) {
+    n_df <- do.call(rbind, parallel::mclapply(1:1000, function(i) {
       sv_vm <- rvon_mises(1000 * n, 1, 4)
       mv_vm <- mvSim(
         dists = list(
@@ -272,6 +272,7 @@ if (FALSE) {
       )
       return(out)
     }, mc.cores = 10))
+    return(n_df)
   }))
 
   ggplot(

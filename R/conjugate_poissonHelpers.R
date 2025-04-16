@@ -22,7 +22,7 @@
 #' @noRd
 
 .conj_poisson_sv <- function(s1 = NULL, priors = NULL,
-                             plot = FALSE, support = NULL, cred.int.level = NULL,
+                             support = NULL, cred.int.level = NULL,
                              calculatingSupport = FALSE) {
   #* `Check samples`
   if (any(abs(s1 - round(s1)) > .Machine$double.eps^0.5) || any(s1 < 0)) {
@@ -57,15 +57,17 @@
   out$summary <- data.frame(HDE_1 = hde1, HDI_1_low = hdi1[1], HDI_1_high = hdi1[2])
   out$posterior$a <- a1_prime
   out$posterior$b <- b1_prime
+  out$prior <- priors
   #* `Make Posterior Draws`
   out$posteriorDraws <- rgamma(10000, a1_prime, b1_prime)
   out$pdf <- pdf1
   #* `keep data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = support, "prob" = pdf1,
-      "sample" = rep("Sample 1", length(support))
-    )
-  }
+  out$plot_list <- list(
+    "range" = range(support),
+    "ddist_fun" = "stats::dgamma",
+    "priors" = list("shape" = priors$a[1],  "rate" = priors$b[1]),
+    "parameters" = list("shape" = a1_prime,
+                        "rate" = b1_prime)
+  )
   return(out)
 }

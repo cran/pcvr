@@ -13,7 +13,7 @@
 #' @param groups An optional set of groups to keep in the plot.
 #' Defaults to NULL in which case all groups in the model are plotted.
 #' @param timeRange An optional range of times to use. This can be used to view predictions for
-#' future data if the avaiable data has not reached some point (such as asymptotic size).
+#' future data if the available data has not reached some point (such as asymptotic size).
 #' @param facetGroups logical, should groups be separated in facets? Defaults to TRUE.
 #' @param groupFill logical, should groups have different colors? Defaults to FALSE. If TRUE then
 #' viridis colormaps are used in the order of virMaps.
@@ -62,15 +62,11 @@ nlmePlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, face
   df <- parsed_form$data
   df[[paste(group, collapse = ".")]] <- interaction(df[, group])
   group <- paste(group, collapse = ".")
-  #* `filter by groups if groups != NULL`
-  if (!is.null(groups)) {
-    df <- df[df[[group]] %in% paste(groups, collapse = "."), ]
-  }
   intVar <- paste0(group, individual)
   #* `make new data if timerange is not NULL`
   if (!is.null(timeRange)) {
     new_data <- do.call(rbind, lapply(unique(df[["autocor"]]), function(g) {
-      stats::setNames(data.frame(g, timeRange), c(intVar, x))
+      return(stats::setNames(data.frame(g, timeRange), c(intVar, x)))
     }))
     new_data[[group]] <- gsub("[.].*", "", new_data[[intVar]])
     new_data[[individual]] <- gsub(".*[.]", "", new_data[[intVar]])
@@ -80,6 +76,11 @@ nlmePlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, face
   }
   preds <- new_data
   preds$trendline <- round(predict(fit, preds), 4)
+  #* `filter by groups if groups != NULL`
+  #* has to happen after predictions to avoid nlme errors in model matrix
+  if (!is.null(groups)) {
+    preds <- preds[preds[[group]] %in% paste(groups, collapse = "."), ]
+  }
   preds <- preds[!duplicated(preds$trendline), ]
   preds <- .add_sigma_bounds(preds, fit, x, group)
   #* `plot`
@@ -91,11 +92,11 @@ nlmePlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, face
   #* `groupFill`
   pal <- viridis::plasma(2, begin = 0.1, end = 0.9)
   virList <- lapply(seq_along(unique(df[[group]])), function(i) {
-    pal
+    return(pal)
   })
   if (groupFill) {
     virList <- lapply(rep(virMaps, length.out = length(unique(df[[group]]))), function(pal) {
-      viridis::viridis(2, begin = 0.1, end = 0.9, option = pal)
+      return(viridis::viridis(2, begin = 0.1, end = 0.9, option = pal))
     })
   }
   #* `layer for individual lines if formula was complete`
@@ -174,5 +175,6 @@ nlmePlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, face
 
 lmePlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, facetGroups = TRUE,
                     groupFill = FALSE, virMaps = c("plasma")) {
-  nlmePlot(fit, form, df, groups, timeRange, facetGroups, groupFill, virMaps)
+  p <- nlmePlot(fit, form, df, groups, timeRange, facetGroups, groupFill, virMaps)
+  return(p)
 }

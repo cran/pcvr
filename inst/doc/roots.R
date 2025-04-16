@@ -15,20 +15,20 @@ rRhyzoDist <- function(n, theta = 0.3, u1_max = 20, u2_max = 5500, sd = 200, abs
   n_gaussians <- runif(1, 1, u1_max)
   #* each gaussian has a mean that is uniform between 1 and u2_max
   mu_is <- lapply(seq_len(n_gaussians), function(i) {
-    runif(1, 1, u2_max)
+    return(runif(1, 1, u2_max))
   })
   #* each gaussian has a sigma that is half-normal based on sd
   sd_is <- lapply(seq_len(n_gaussians), function(i) {
-    extraDistr::rhnorm(1, sd)
+    return(extraDistr::rhnorm(1, sd))
   })
   #* assign pixels randomly to gaussians
   index <- sample(seq_len(n_gaussians), size = n_gauss_pixels, replace = TRUE)
   px_is <- lapply(seq_len(n_gaussians), function(i) {
-    sum(index == i)
+    return(sum(index == i))
   })
   #* draws n_pixels time from each gaussian
   d <- unlist(lapply(seq_len(n_gaussians), function(i) {
-    rnorm(px_is[[i]], mu_is[[i]], sd_is[[i]])
+    return(rnorm(px_is[[i]], mu_is[[i]], sd_is[[i]]))
   }))
   #* combine data
   d <- c(d, background)
@@ -38,19 +38,19 @@ rRhyzoDist <- function(n, theta = 0.3, u1_max = 20, u2_max = 5500, sd = 200, abs
   return(d)
 }
 lastNonZeroBin <- function(d) {
-  max(d[d$value > 0, "label"])
+  return(max(d[d$value > 0, "label"]))
 }
 tubeAngleToDepth <- function(x, theta) {
-  sin(theta) * x
+  return(sin(theta) * x)
 }
 mv_mean <- function(d) {
-  weighted.mean(d$label, d$value)
+  return(weighted.mean(d$label, d$value))
 }
 mv_median <- function(d) {
-  median(rep(d$label, d$value))
+  return(median(rep(d$label, d$value)))
 }
 mv_std <- function(d) {
-  sd(rep(d$label, d$value))
+  return(sd(rep(d$label, d$value)))
 }
 sv_from_mv <- function(df, theta) { # note this should also return mean/median/std
   metaCols <- colnames(df)[-which(grepl("value|label|trait", colnames(df)))]
@@ -78,11 +78,12 @@ ex <- do.call(rbind, lapply(1:20, function(rep) {
   h <- hist(x, plot = FALSE, breaks = seq(0, 5500, 20))
   breaks <- h$breaks[-1]
   counts <- h$counts
-  data.frame(
+  rep_df <- data.frame(
     rep = as.character(rep),
     value = counts, label = breaks,
     trait = "x_frequencies"
   )
+  return(rep_df)
 }))
 pcv.joyplot(ex, "x_frequencies", group = c("rep"))
 
@@ -101,7 +102,7 @@ parameters <- data.frame(
 set.seed(123)
 df <- do.call(rbind, lapply(seq_len(nrow(parameters)), function(time) {
   pars <- parameters[parameters$time == time, ]
-  do.call(rbind, lapply(1:10, function(rep) {
+  time_df <- do.call(rbind, lapply(1:10, function(rep) {
     n_total_pixels <- runif(1, pars$n_min, pars$n_max)
     u2_max_iter <- ceiling(rnorm(1, pars$u2_max, pars$u2_max_noise))
     x <- rRhyzoDist(
@@ -112,13 +113,15 @@ df <- do.call(rbind, lapply(seq_len(nrow(parameters)), function(time) {
     h <- hist(x, plot = FALSE, breaks = seq(0, 5500, 20))
     breaks <- h$breaks[-1]
     counts <- h$counts
-    data.frame(
+    rep_df <- data.frame(
       rep = as.character(rep),
       time = as.character(time),
       value = counts, label = breaks,
       trait = "x_frequencies"
     )
+    return(rep_df)
   }))
+  return(time_df)
 }))
 df$rep <- factor(df$rep, levels = seq_along(unique(df$rep)), ordered = TRUE)
 sv <- sv_from_mv(df)
@@ -163,7 +166,7 @@ df2 <- do.call(rbind, lapply(1:10, function(rep) {
     add_area <- 0
     previous_max_depth <- max_depth
   }
-  do.call(rbind, dList)
+  return(do.call(rbind, dList))
 }))
 df2$rep <- factor(df2$rep, levels = seq_along(unique(df2$rep)), ordered = TRUE)
 sv2 <- sv_from_mv(df2)
@@ -174,6 +177,7 @@ ggplot(sv, aes(x = time, y = area, group = rep)) +
   geom_line() +
   labs(x = "Sampling Time", y = "Area (px)", title = "Assuming roots can leave the image")
 
+## -----------------------------------------------------------------------------
 ggplot(sv2, aes(x = time, y = area, group = rep)) +
   geom_point() +
   geom_line() +
@@ -185,6 +189,7 @@ ggplot(sv, aes(x = time, y = mean_x_frequencies, group = rep)) +
   geom_line() +
   labs(x = "Sampling Time", y = "Mean Depth", title = "Assuming roots can leave the image")
 
+## -----------------------------------------------------------------------------
 ggplot(sv2, aes(x = time, y = mean_x_frequencies, group = rep)) +
   geom_point() +
   geom_line() +
@@ -196,6 +201,7 @@ ggplot(sv, aes(x = time, y = median_x_frequencies, group = rep)) +
   geom_line() +
   labs(x = "Sampling Time", y = "Median Depth", title = "Assuming roots can leave the image")
 
+## -----------------------------------------------------------------------------
 ggplot(sv2, aes(x = time, y = median_x_frequencies, group = rep)) +
   geom_point() +
   geom_line() +
@@ -207,6 +213,7 @@ ggplot(sv, aes(x = time, y = height, group = rep)) +
   geom_line() +
   labs(x = "Sampling Time", y = "Max Depth", title = "Assuming roots can leave the image")
 
+## -----------------------------------------------------------------------------
 ggplot(sv2, aes(x = time, y = height, group = rep)) +
   geom_point() +
   geom_line() +
@@ -242,22 +249,20 @@ s2 <- ex[ex$geno == "b" & ex$time == max(ex$time), "area"]
 conj_ex <- conjugate(
   s1, s2, # specify data, here two samples
   method = "t", # use the "T" distribution
-  priors = list(mu = 3000, n = 1, s2 = 1000), # prior distribution, here it is the same for both samples
-  plot = TRUE, # return a plot
+  priors = list(mu = 3000, sd = 50), # prior distribution, here it is the same for both samples
   rope_range = c(-500, 500), # differences of <500 pixels deemed not meaningful
   rope_ci = 0.89, cred.int.level = 0.89, # default credible interval lengths
-  hypothesis = "equal", # hypothesis to test
-  support = NULL # optionally you can provide support, this is generally unnecessary.
+  hypothesis = "equal" # hypothesis to test
 )
 
 ## -----------------------------------------------------------------------------
-conj_ex$summary
+conj_ex
 
 ## -----------------------------------------------------------------------------
 do.call(rbind, conj_ex$posterior)
 
 ## -----------------------------------------------------------------------------
-conj_ex$plot
+plot(conj_ex)
 
 ## -----------------------------------------------------------------------------
 pcv.joyplot(df, "x_frequencies", group = c("rep", "time"))
@@ -279,10 +284,10 @@ d <- split(df, interaction(df[, c("rep", "time")]))
 peak_df <- data.frame(peaks = unlist(lapply(d, getPeaks)))
 rownames(peak_df) <- NULL
 peak_df$rep <- unlist(lapply(names(d), function(nm) {
-  strsplit(nm, "[.]")[[1]][[1]]
+  return(strsplit(nm, "[.]")[[1]][[1]])
 }))
 peak_df$time <- unlist(lapply(names(d), function(nm) {
-  strsplit(nm, "[.]")[[1]][[2]]
+  return(strsplit(nm, "[.]")[[1]][[2]])
 }))
 
 ## -----------------------------------------------------------------------------
@@ -293,21 +298,19 @@ conj_ex2 <- conjugate(
   s1, s2, # specify data, here two samples
   method = "poisson", # use the Poisson distribution
   priors = list(a = c(0.5, 0.5), b = c(0.5, 0.5)), # prior distributions for gamma on lambda
-  plot = TRUE, # return a plot
   rope_range = c(-1, 1), # differences of <500 pixels deemed not meaningful
   rope_ci = 0.89, cred.int.level = 0.89, # default credible interval lengths
-  hypothesis = "equal", # hypothesis to test
-  support = NULL # optionally you can provide support, this is generally unnecessary.
+  hypothesis = "equal" # hypothesis to test
 )
 
 ## -----------------------------------------------------------------------------
-conj_ex2$summary
+conj_ex2
 
 ## -----------------------------------------------------------------------------
 do.call(rbind, conj_ex2$posterior)
 
 ## -----------------------------------------------------------------------------
-conj_ex2$plot
+plot(conj_ex2)
 
 ## -----------------------------------------------------------------------------
 set.seed(123)
@@ -316,24 +319,30 @@ simFreqs <- function(vec, group) {
   s1 <- hist(vec, breaks = seq(1, 181, 1), plot = FALSE)$counts
   s1d <- as.data.frame(cbind(data.frame(group), matrix(s1, nrow = 1)))
   colnames(s1d) <- c("group", paste0("sim_", 1:180))
-  s1d
+  return(s1d)
 }
 
 sim_df <- rbind(
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(rnorm(200, 50, 10), group = "normal")
+    sf <- simFreqs(rnorm(200, 50, 10), group = "normal")
+    return(sf)
   })),
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(rlnorm(200, log(30), 0.25), group = "lognormal")
+    sf <- simFreqs(rlnorm(200, log(30), 0.25), group = "lognormal")
+    return(sf)
   })),
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(c(rlnorm(125, log(15), 0.25), rnorm(75, 75, 5)), group = "bimodal")
+    sf <- simFreqs(c(rlnorm(125, log(15), 0.25), rnorm(75, 75, 5)), group = "bimodal")
+    return(sf)
   })),
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(c(rlnorm(100, log(15), 0.25), rnorm(50, 50, 5), rnorm(50, 90, 5)), group = "trimodal")
+    sf <- simFreqs(c(rlnorm(100, log(15), 0.25), rnorm(50, 50, 5),
+                     rnorm(50, 90, 5)), group = "trimodal")
+    return(sf)
   })),
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(runif(200, 1, 180), group = "uniform")
+    sf <- simFreqs(runif(200, 1, 180), group = "uniform")
+    return(sf)
   }))
 )
 
@@ -373,6 +382,7 @@ net.plot(n, fill = "time")
 ## -----------------------------------------------------------------------------
 pcv.joyplot(df2, "x_frequencies", group = c("rep", "time"))
 
+## -----------------------------------------------------------------------------
 df2_emd <- pcv.emd(
   df = df2, cols = "x_frequencies", reorder = c("rep", "time"),
   id = c("rep", "time"),

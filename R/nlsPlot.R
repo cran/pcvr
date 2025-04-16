@@ -14,7 +14,7 @@
 #' @param df A dataframe to use in plotting observed growth curves on top of the model.
 #' This must be supplied for nls models.
 #' @param timeRange An optional range of times to use. This can be used to view predictions for
-#' future data if the avaiable data has not reached some point (such as asymptotic size).
+#' future data if the available data has not reached some point (such as asymptotic size).
 #' @param facetGroups logical, should groups be separated in facets? Defaults to TRUE.
 #' @param groupFill logical, should groups have different colors? Defaults to FALSE.
 #' If TRUE then viridis colormaps are used in the order of virMaps
@@ -88,7 +88,7 @@ nlsPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
   virVals <- unlist(lapply(
     rep(virMaps, length.out = length(unique(summary_df[[x]]))),
     function(pal) {
-      viridis::viridis(1, begin = 0.5, option = pal)
+      return(viridis::viridis(1, begin = 0.5, option = pal))
     }
   ))
   color_scale <- ggplot2::scale_color_manual(values = virVals)
@@ -131,7 +131,7 @@ nlsPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
   if (!is.null(groups)) {
     keep_index_df <- Reduce(intersect, lapply(seq_along(groups), function(i) {
       grp <- groups[i]
-      which(df[[group[i]]] %in% grp)
+      return(which(df[[group[i]]] %in% grp))
     }))
     df <- df[keep_index_df, ]
   }
@@ -142,7 +142,7 @@ nlsPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
       append(
         list(timeRange),
         c(lapply(group, function(grp) {
-          unique(df[[grp]])
+          return(unique(df[[grp]]))
         }))
       )
     )
@@ -182,7 +182,7 @@ nlsPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
     virVals <- unlist(lapply(
       rep(virMaps, length.out = length(unique(df[["group_interaction"]]))),
       function(pal) {
-        viridis::viridis(1, begin = 0.5, option = pal)
+        return(viridis::viridis(1, begin = 0.5, option = pal))
       }
     ))
     color_scale <- ggplot2::scale_color_manual(values = virVals)
@@ -251,7 +251,7 @@ gamPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, facet
   if (!is.null(groups)) {
     keep_index_df <- Reduce(intersect, lapply(seq_along(groups), function(i) {
       grp <- groups[i]
-      which(df[[group[i]]] %in% grp)
+      return(which(df[[group[i]]] %in% grp))
     }))
     df <- df[keep_index_df, ]
   }
@@ -262,7 +262,7 @@ gamPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, facet
       append(
         list(timeRange),
         c(lapply(group, function(grp) {
-          unique(df[[grp]])
+          return(unique(df[[grp]]))
         }))
       )
     )
@@ -307,7 +307,7 @@ gamPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, facet
     virVals <- unlist(lapply(
       rep(virMaps, length.out = length(unique(df[["group_interaction"]]))),
       function(pal) {
-        viridis::viridis(1, begin = 0.5, option = pal)
+        return(viridis::viridis(1, begin = 0.5, option = pal))
       }
     ))
     color_scale <- ggplot2::scale_color_manual(values = virVals)
@@ -353,5 +353,6 @@ gamPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, facet
 
 lmPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL, facetGroups = TRUE,
                    groupFill = FALSE, virMaps = c("plasma")) {
-  nlsPlot(fit, form, df, groups, timeRange, facetGroups, groupFill, virMaps)
+  p <- nlsPlot(fit, form, df, groups, timeRange, facetGroups, groupFill, virMaps)
+  return(p)
 }

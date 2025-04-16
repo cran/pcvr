@@ -11,11 +11,12 @@ conjugate(
     "negbin", "vonmises", "vonmises2", "uniform", "pareto", "gamma", "bernoulli",
     "exponential", "bivariate_uniform", "bivariate_gaussian", "bivariate_lognormal"),
   priors = NULL,
-  plot = FALSE,
+  plot = NULL,
   rope_range = NULL,
   rope_ci = 0.89,
   cred.int.level = 0.89,
   hypothesis = "equal",
+  bayes_factor = NULL,
   support = NULL
 )
 }
@@ -43,9 +44,7 @@ The "t" and "gaussian" methods both use a T distribution with "t" testing for a 
 of means and "gaussian" testing for a difference in the distributions (similar to a Z test).
 Both Von Mises options are for use with circular data (for instance hue values when the circular
 quality of the data is relevant). Note that non-circular distributions can be compared to each other.
-This should only be done with caution. Make sure you understand the interpretation of any
-comparison you are doing if you specify two methods (c("gaussian", "lognormal") as an arbitrary
-example).
+This should only be done with caution and may not be supported in all downstream functions.
 There are also 3 bivariate conjugate priors that are supported for use with single value data.
 Those are "bivariate_uniform", "bivariate_gaussian" and "bivariate_lognormal".}
 
@@ -59,7 +58,7 @@ These names vary by method (see details).
  The \code{posterior} part of output can also be recycled as a new prior if Bayesian
  updating is appropriate for your use.}
 
-\item{plot}{Logical, should a ggplot be made and returned.}
+\item{plot}{deprecated, use \code{plot} method instead.}
 
 \item{rope_range}{Optional vector specifying a region of practical equivalence.
 This interval is considered practically equivalent to no effect.
@@ -80,14 +79,15 @@ in computing HDI for samples, defaults to 0.89.}
 Options are "unequal", "equal", "greater", and "lesser",
  read as "sample1 greater than sample2".}
 
-\item{support}{Optional support vector to include all possible values the random variable
-(samples) might take. This defaults to NULL in which case each method will use default
-behavior to attempt to calculate a dense support, but it is a good idea to supply this
-with some suitable vector. For example, the Beta method uses \code{seq(0.0001, 0.9999, 0.0001)}
-for support.}
+\item{bayes_factor}{Optional point or interval to evaluate bayes factors on. Note that this
+generally only makes sense to use if you have informative priors where the change in odds between
+prior and posterior is meaningful about the data. If this is non-NULL then columns of bayes factors
+are added to the summary output. Note these are only implemented for univariate distributions.}
+
+\item{support}{Deprecated}
 }
 \value{
-A list with named elements:
+A \link{conjugate-class} object with slots including:
 \itemize{
    \item{\strong{summary}: A data frame containing HDI/HDE values for each sample and
    the ROPE as well as posterior probability of the hypothesis and ROPE test (if specified).
@@ -95,14 +95,16 @@ A list with named elements:
    Estimate" of the posterior, that is the tallest part of the probability density function. The
    HDI is the Highest Density Interval, which is an interval that contains X\% of the posterior
    distribution, so \code{cred.int.level = 0.8} corresponds to an HDI that includes 80 percent
-   of the posterior probability.}
+   of the posterior probability. Bayes factors are calculated as posterior/prior for each sample.}
    \item{\strong{posterior}: A list of updated parameters in the same format as the prior
     for the given method. If desired this does allow for Bayesian updating.}
-   \item{\strong{plot_df}: A data frame of probabilities along the support for each sample.
-    This is used for making the ggplot.}
-   \item{\strong{rope_df}: A data frame of draws from the ROPE posterior.}
+   \item{\strong{prior}: The prior in a list with the same format as the posterior.}
    \item{\strong{plot}: A ggplot showing the distribution of samples and optionally the
-   distribution of differences/ROPE}
+   distribution of differences/ROPE}.
+   \item{\strong{plot_parameters}}: Parameters used in making a plot of the data.
+   Contains support range and posterior recoded to use a density function.
+   \item{\strong{data}}: Data from s1 and s2 arguments.
+   \item{\strong{call}}: The function call.
 }
 }
 \description{
@@ -112,26 +114,24 @@ several distributions.
 \details{
 Prior distributions default to be weakly informative and in some cases you may wish to change them.
 \itemize{
-   \item{\strong{"t" and "gaussian":} \code{priors = list( mu=c(0,0),n=c(1,1),s2=c(20,20) ) },
-    where mu is the mean, n is the number of prior observations, and s2 is variance}
+   \item{\strong{"t", "gaussian", and "lognormal":} \code{priors = list(mu = 0, sd = 10)},
+    where mu is the mean and sd is standard deviation. For the lognormal method these describe
+    the normal distribution of the mean parameter for lognormal data and are on the log scale.}
    \item{\strong{"beta", "bernoulli", and "binomial":}
-   \code{priors = list( a=c(0.5, 0.5), b=c(0.5, 0.5) )},
+   \code{priors = list(a = 0.5, b = 0.5)},
     where a and b are shape parameters of the beta distribution. Note that for the binomial
     distribution this is used as the prior for success probability P,
     which is assumed to be beta distributed as in a beta-binomial distribution.}
-   \item{\strong{"lognormal": } \code{priors = list(mu = 0, sd = 5) },
-   where mu and sd describe the normal distribution of the mean parameter for lognormal data.
-   Note that these values are on the log scale.}
    \item{\strong{"lognormal2": } \code{priors = list(a = 1, b = 1) },
    where a and b are the shape and scale parameters of the gamma distribution of lognormal data's
-   precision parameter (using the alternative mu, precision paramterization).
+   precision parameter (using the alternative mu, precision parameterization).
    }
    \item{\strong{"gamma": } \code{priors = list(shape = 0.5, scale = 0.5, known_shape = 1)},
     where shape and scale are the respective parameters of the gamma distributed rate
     (inverse of scale) parameter of gamma distributed data.}
-   \item{\strong{"poisson" and "exponential": } \code{priors = list(a=c(0.5,0.5),b=c(0.5,0.5))},
+   \item{\strong{"poisson" and "exponential": } \code{priors = list(a = 0.5,b = 0.5)},
     where a and b are shape parameters of the gamma distribution.}
-   \item{\strong{"negbin": } \code{priors = list(r=c(10,10), a=c(0.5,0.5),b=c(0.5,0.5))},
+   \item{\strong{"negbin": } \code{priors = list(r = 10, a = 0.5, b = 0.5)},
     where r is the r parameter of the negative binomial distribution
     (representing the number of successes required)
      and where a and b are shape parameters of the beta distribution.
@@ -143,7 +143,7 @@ Prior distributions default to be weakly informative and in some cases you may w
     of the pareto distributed upper boundary. Note that different sources will use different
     terminology for these parameters. These names were chosen for consistency with the
     \code{extraDistr} implementation of the pareto distribution. On Wikipedia the parameters are
-    called shape and scale, corresponding to extraDistr's scale and location respecitvely, which
+    called shape and scale, corresponding to extraDistr's scale and location respectively, which
     can be confusing. Note that the lower boundary of the uniform is assumed to be 0.
     }
     \item{\strong{"pareto": } \code{list(a = 1, b = 1, known_location = min(data))}, where
@@ -188,8 +188,6 @@ Prior distributions default to be weakly informative and in some cases you may w
     shown in the plot and tested, but priors use Mu and SD for the normal distribution of the mean.
     }
 }
-
-See examples for plots of these prior distributions.
 }
 \examples{
 mv_ln <- mvSim(
@@ -204,7 +202,7 @@ mv_ln <- mvSim(
 ln_mv_ex <- conjugate(
   s1 = mv_ln[1:30, -1], s2 = mv_ln[31:60, -1], method = "lognormal",
   priors = list(mu = 5, sd = 2),
-  plot = FALSE, rope_range = c(-40, 40), rope_ci = 0.89,
+  rope_range = c(-40, 40), rope_ci = 0.89,
   cred.int.level = 0.89, hypothesis = "equal", support = NULL
 )
 
@@ -213,7 +211,7 @@ ln_sv_ex <- conjugate(
   s1 = rlnorm(100, log(130), log(1.3)), s2 = rlnorm(100, log(100), log(1.6)),
   method = "lognormal",
   priors = list(mu = 5, sd = 2),
-  plot = FALSE, rope_range = NULL, rope_ci = 0.89,
+  rope_range = NULL, rope_ci = 0.89,
   cred.int.level = 0.89, hypothesis = "equal", support = NULL
 )
 
@@ -229,17 +227,17 @@ mv_gauss <- mvSim(
 
 gauss_mv_ex <- conjugate(
   s1 = mv_gauss[1:30, -1], s2 = mv_gauss[31:60, -1], method = "gaussian",
-  priors = list(mu = 30, n = 1, s2 = 100),
-  plot = FALSE, rope_range = c(-25, 25), rope_ci = 0.89,
+  priors = list(mu = 30, sd = 10),
+  rope_range = c(-25, 25), rope_ci = 0.89,
   cred.int.level = 0.89, hypothesis = "equal", support = NULL
 )
 
-# T test sv example
+# T test sv example with two different priors
 
 gaussianMeans_sv_ex <- conjugate(
   s1 = rnorm(10, 50, 10), s2 = rnorm(10, 60, 12), method = "t",
-  priors = list(mu = 30, n = 1, s2 = 100),
-  plot = FALSE, rope_range = c(-5, 8), rope_ci = 0.89,
+  priors = list(list(mu = 40, sd = 10), list(mu = 45, sd = 8)),
+  rope_range = c(-5, 8), rope_ci = 0.89,
   cred.int.level = 0.89, hypothesis = "equal", support = NULL
 )
 
@@ -257,8 +255,9 @@ mv_beta <- mvSim(
 beta_mv_ex <- conjugate(
   s1 = mv_beta[1:30, -1], s2 = mv_beta[31:50, -1], method = "beta",
   priors = list(a = 0.5, b = 0.5),
-  plot = FALSE, rope_range = c(-0.1, 0.1), rope_ci = 0.89,
-  cred.int.level = 0.89, hypothesis = "equal"
+  rope_range = c(-0.1, 0.1), rope_ci = 0.89,
+  cred.int.level = 0.89, hypothesis = "equal",
+  bayes_factor = 0.5 # note this may not be reasonable with these priors
 )
 
 # beta sv example
@@ -266,8 +265,9 @@ beta_mv_ex <- conjugate(
 beta_sv_ex <- conjugate(
   s1 = rbeta(20, 5, 5), s2 = rbeta(20, 8, 5), method = "beta",
   priors = list(a = 0.5, b = 0.5),
-  plot = FALSE, rope_range = c(-0.1, 0.1), rope_ci = 0.89,
-  cred.int.level = 0.89, hypothesis = "equal"
+  rope_range = c(-0.1, 0.1), rope_ci = 0.89,
+  cred.int.level = 0.89, hypothesis = "equal",
+  bayes_factor = c(0.5, 0.75) # note this may not be reasonable with these priors
 )
 
 # binomial sv example
@@ -278,7 +278,7 @@ binomial_sv_ex <- conjugate(
   s1 = list(successes = c(15, 14, 16, 11), trials = c(20, 20, 20, 20)),
   s2 = list(successes = c(7, 8, 10, 5), trials = c(20, 20, 20, 20)), method = "binomial",
   priors = list(a = 0.5, b = 0.5),
-  plot = FALSE, rope_range = c(-0.1, 0.1), rope_ci = 0.89,
+  rope_range = c(-0.1, 0.1), rope_ci = 0.89,
   cred.int.level = 0.89, hypothesis = "equal"
 )
 
@@ -287,7 +287,7 @@ binomial_sv_ex <- conjugate(
 poisson_sv_ex <- conjugate(
   s1 = rpois(20, 10), s2 = rpois(20, 8), method = "poisson",
   priors = list(a = 0.5, b = 0.5),
-  plot = FALSE, rope_range = c(-1, 1), rope_ci = 0.89,
+  rope_range = c(-1, 1), rope_ci = 0.89,
   cred.int.level = 0.89, hypothesis = "equal"
 )
 
@@ -298,7 +298,7 @@ poisson_sv_ex <- conjugate(
 negbin_sv_ex <- conjugate(
   s1 = rnbinom(20, 10, 0.5), s2 = rnbinom(20, 10, 0.25), method = "negbin",
   priors = list(r = 10, a = 0.5, b = 0.5),
-  plot = FALSE, rope_range = c(-1, 1), rope_ci = 0.89,
+  rope_range = c(-1, 1), rope_ci = 0.89,
   cred.int.level = 0.89, hypothesis = "equal"
 )
 
@@ -316,7 +316,7 @@ vm1_ex <- conjugate(
   s2 = mv_gauss[31:70, -1],
   method = "vonmises",
   priors = list(mu = 45, kappa = 1, boundary = c(0, 180), known_kappa = 1, n = 1),
-  plot = FALSE, rope_range = c(-1, 1), rope_ci = 0.89,
+  rope_range = c(-1, 1), rope_ci = 0.89,
   cred.int.level = 0.89, hypothesis = "equal"
 )
 
@@ -326,10 +326,12 @@ vm2_ex <- conjugate(
   s2 = brms::rvon_mises(15, 3, 3),
   method = "vonmises2",
   priors = list(mu = 0, kappa = 0.5, boundary = c(-pi, pi), n = 1),
-  cred.int.level = 0.95,
-  plot = FALSE
+  cred.int.level = 0.95
 )
 
+}
+\seealso{
+[barg() for additional reporting]
 }
 \keyword{ROPE}
 \keyword{bayesian}

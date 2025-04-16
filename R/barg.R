@@ -7,8 +7,8 @@
 #' made by \link{growthSS} and \link{fitGrowth}. See details for explanations of those metrics and
 #' the output.
 #'
-#' @param fit The brmsfit object or a list of brmsfit objects in the case that you split models to run
-#' on subsets of the data for computational simplicity.
+#' @param fit A conjugate object, brmsfit object, or a list of brmsfit objects in the case that you
+#' split models to run on subsets of the data for computational simplicity.
 #' @param ss The growthSS output used to specify the model. If fit is a list then this can either be one
 #' growthSS list in which case the priors are assumed to be the same for each model or it can be a list
 #' of the same length as fit. Note that the only parts of this which are used are the \code{call$start}
@@ -16,10 +16,14 @@
 #' so if you have a list of brmsfit objects and no ss object you can specify a stand-in list. This
 #' can also be left NULL (the default) and posterior predictive plots and prior predictive plots will
 #' not be made.
-#'
+#' @param priors A list of priors similar to how they are specified in conjugate but named for the
+#' distribution you plan to use, see details and examples.
 #'
 #' @details
 #'
+#' The majority of the Bayesian Analysis and Reporting Guidelines are geared towards statistical
+#' methods that use MCMC or other numeric approximations. For those cases (here meaning brms models
+#' fit by \code{fitGrowth} and \code{growthSS}) the output will contain:
 #'
 #' \itemize{
 #'     \item \bold{General}: This includes chain number, length, and total divergent transitions per
@@ -56,6 +60,10 @@
 #'     fine down to about 0.1. A summary and the total values are returned, with the summary being
 #'     useful if several models are included in a list for fit argument
 #'
+#'     \item \bold{mcmcTrace}: A plot of each model's MCMC traces. Ideally these should be very mixed
+#'     and stationary. For more options for visualizing MCMC diagnostics see
+#'     \code{bayesplot::mcmc_trace}.
+#'
 #'     \item \bold{priorPredictive}: A plot of data simulated from the prior using \link{plotPrior}.
 #'     This should generate data that is biologically plausible for your situation, but it will
 #'     probably be much more variable than your data. That is the effect of the mildly informative thick
@@ -70,11 +78,26 @@
 #'     model should be reconsidered.
 #'     }
 #'
+#' For analytic solutions (ie, the \code{conjugate} class) there are fewer elements.
+#' \itemize{
+#'     \item \bold{priorSensitivity}: Patchwork of prior sensitivity plots showing the distribution
+#'     of posterior probabilities, any interpretation changes from those tests, and the random priors
+#'     that were used. This is only returned if the \code{priors} argument is specified (see below).
+#'     \item \bold{posteriorPredictive}: Plot of posterior predictive distributions similar to that
+#'     from a non-longitudinal \code{fitGrowth} model fit with brms.
+#'     \item \bold{Summary}: The summary of the \code{conjugate} object.
+#' }
 #'
+#' Priors here are specified using a named list. For instance, to use 100 normal priors with means
+#' between 5 and 20 and standard deviations between 5 and 10 the prior argument would be
+#' \code{list("rnorm" = list("mean" = c(5, 20), "sd" = c(5, 10), "n" = 100)))}.
+#' The priors that are used in sensitivity analysis are drawn randomly from within the ranges specified
+#' by the provided list. If you are unsure what random-generation function to use then check the
+#' \link{conjugate} docs where the distributions are listed for each method in the details section.
 #'
 #'
 #' @keywords Bayesian brms prior
-#' @return A named list containing Rhat, ESS, NEFF, and Prior/Posterior Predictive plots.
+#' @return A named list containing Rhat, ESS, NEFF, and Trace/Prior/Posterior Predictive plots.
 #' See details for interpretation.
 #' @importFrom rlang is_installed
 #' @seealso \link{plotPrior} for visual prior predictive checks.
@@ -99,21 +122,66 @@
 #' fit_2 <- fit_test
 #' fit_list <- list(fit_test, fit_2)
 #' x <- barg(fit_list, list(ss, ss))
+#'
+#' x <- conjugate(
+#'   s1 = rnorm(10, 10, 1), s2 = rnorm(10, 13, 1.5), method = "t",
+#'   priors = list(
+#'     list(mu = 10, sd = 2),
+#'     list(mu = 10, sd = 2)
+#'   ),
+#'   plot = FALSE, rope_range = c(-8, 8), rope_ci = 0.89,
+#'   cred.int.level = 0.89, hypothesis = "unequal",
+#'   bayes_factor = c(50, 55)
+#' )
+#' b <- barg(x, priors = list("rnorm" = list("n" = 10, "mean" = c(5, 20), "sd" = c(5, 10))))
 #' }
 #'
 #' @export
 
-barg <- function(fit, ss = NULL) {
-  out <- list()
-  #* `format everything into lists`
-  if (methods::is(fit, "brmsfit")) {
+barg <- function(fit, ss = NULL, priors = NULL) {
+  #* `format fit and apply helper`
+  if (methods::is(fit, "conjugate")) {
+    out <- .barg.conjugate(fit, priors)
+  } else if (methods::is(fit, "brmsfit")) {
     fitList <- list(fit)
+    out <- .barg.brmsfit(fitList, ss)
   } else {
     fitList <- fit
+    out <- .barg.brmsfit(fitList, ss)
   }
+  return(out)
+}
+
+#' @keywords internal
+#' @noRd
+
+.barg.conjugate <- function(x, priors) {
+  out <- list()
+  #* `Prior Sensitivity if priors were given`
+  if (!is.null(priors)) {
+    n <- priors[[1]]$n
+    if (is.null(n)) {
+      n <- 100
+    }
+    priors[[1]] <- priors[[1]][which(names(priors[[1]]) != "n")]
+    out[["priorSensitivity"]] <- .prior_sens_conj(x, priors, n = n)
+  }
+  #* `Posterior Predictive`
+  out[["posteriorPredictive"]] <- .post_pred_conj(x, n = 0)
+  #* `Summary object`
+  out[["Summary"]] <- summary(x)
+  #* `return output`
+  return(out)
+}
+
+#' @keywords internal
+#' @noRd
+
+.barg.brmsfit <- function(fitList, ss) {
+  out <- list()
   if (!is.null(names(ss)) && names(ss)[1] == "formula") {
     ssList <- lapply(seq_along(fitList), function(i) {
-      ss
+      return(ss)
     })
   } else {
     ssList <- ss
@@ -122,26 +190,27 @@ barg <- function(fit, ss = NULL) {
   general <- do.call(rbind, lapply(seq_along(fitList), function(i) {
     fitobj <- fitList[[i]]
     ms <- summary(fitobj)
-    data.frame(
+    df <- data.frame(
       chains = ms$chains,
       iter = ms$iter,
       num.divergent = rstan::get_num_divergent(fitobj$fit),
       model = i
     )
+    return(df)
   }))
   out[["General"]] <- general
   #* `Rhat summary`
-  rhats <- do.call(rbind, lapply(fitList, function(fitobj) {
-    brms::rhat(fitobj)
-  }))
+  rhats <- as.data.frame(do.call(rbind, lapply(fitList, function(fitobj) {
+    return(brms::rhat(fitobj))
+  })))
   rhat_metrics <- apply(rhats, MARGIN = 2, summary)
   rhats$model <- seq_along(fitList)
   out[["Rhat"]][["summary"]] <- rhat_metrics
   out[["Rhat"]][["complete"]] <- rhats
   #* `NEFF summary`
-  neff <- do.call(rbind, lapply(fitList, function(fitobj) {
-    brms::neff_ratio(fitobj)
-  }))
+  neff <- as.data.frame(do.call(rbind, lapply(fitList, function(fitobj) {
+    return(brms::neff_ratio(fitobj))
+  })))
   neff_metrics <- apply(neff, MARGIN = 2, summary)
   neff$model <- seq_along(fitList)
   out[["NEFF"]][["summary"]] <- neff_metrics
@@ -150,12 +219,13 @@ barg <- function(fit, ss = NULL) {
   ess <- do.call(rbind, lapply(seq_along(fitList), function(i) {
     fit <- fitList[[i]]
     ms <- summary(fit)
-    data.frame(
+    df <- data.frame(
       "par" = c(rownames(ms$fixed), rownames(ms$spec_pars)),
       "Bulk_ESS" = c(ms$fixed$Bulk_ESS, ms$spec_pars$Bulk_ESS),
       "Tail_ESS" = c(ms$fixed$Tail_ESS, ms$spec_pars$Tail_ESS),
       "model" = i
     )
+    return(df)
   }))
   ag_b_ess <- aggregate(Bulk_ESS ~ par, ess, summary)
   tag_b_ess <- t(ag_b_ess[-1])
@@ -166,6 +236,12 @@ barg <- function(fit, ss = NULL) {
   ess_metrics <- rbind(tag_b_ess, tag_t_ess)
   out[["ESS"]][["summary"]] <- ess_metrics
   out[["ESS"]][["complete"]] <- ess
+  #* `MCMC Diagnostic Plot`
+  tracePlots <- lapply(fitList, function(fit) {
+    p <- suppressMessages(brms::mcmc_plot(fit, type = "trace"))
+    return(p)
+  })
+  out[["mcmcTrace"]] <- tracePlots
   #* `Prior Predictive Check`
   if (methods::is(eval(ssList[[1]]$call$start), "list")) {
     pri_preds <- lapply(seq_along(ssList), function(i) {
@@ -173,14 +249,14 @@ barg <- function(fit, ss = NULL) {
       x <- trimws(gsub("[|].*|[/].*", "", as.character(ss$pcvrForm)[3]))
       t <- max(ss$df[[x]])
       pri_pred <- plotPrior(priors = eval(ss$call$start), type = ss$model, n = 200, t = t)
-      pri_pred$simulated
+      return(pri_pred$simulated)
     })
     out[["priorPredictive"]] <- pri_preds
   }
   #* `Posterior Predictive Check`
   if (methods::is(eval(ssList[[1]]$pcvrForm), "formula")) {
     post_preds <- lapply(seq_along(fitList), function(i) {
-      brmPlot(fitList[[i]], form = ssList[[i]]$pcvrForm, df = ssList[[i]]$df)
+      return(brmPlot(fitList[[i]], form = ssList[[i]]$pcvrForm, df = ssList[[i]]$df))
     })
     out[["posteriorPredictive"]] <- post_preds
   }

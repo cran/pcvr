@@ -8,11 +8,11 @@ library(ggplot2)
 library(patchwork) # for easy ggplot manipulation/combination
 
 ## ----class.source="static-code", eval=F---------------------------------------
-#  devtools::install_github("joshqsumner/pcvr", build_vignettes = TRUE)
-#  library(pcvr)
+# devtools::install_github("joshqsumner/pcvr", build_vignettes = TRUE)
+# library(pcvr)
 
 ## ----class.source="static-code", eval=F---------------------------------------
-#  complicatedFunction("syntax") # do not run this style
+# complicatedFunction("syntax") # do not run this style
 
 ## -----------------------------------------------------------------------------
 1 + 1 # run this style
@@ -93,8 +93,8 @@ ggplot(sv_ag, aes(
   color = genotype
 )) +
   facet_wrap(~ factor(fertilizer, levels = c("0", "50", "100"))) +
-  geom_smooth(method = "loess", se = TRUE, fill = "gray90") +
-  geom_line(aes(group = barcode), linewidth = 0.15) +
+  geom_line(aes(group = interaction(barcode, genotype)), linewidth = 0.1) +
+  geom_smooth(method = "loess", se = TRUE, fill = "gray90", linewidth = 1, linetype = 5) +
   labs(
     y = expression("Area" ~ "(cm"^2 ~ ")"),
     color = "Genotype"
@@ -107,7 +107,11 @@ ggplot(sv_ag, aes(
 mo17_area <- sv_ag[sv_ag$genotype == "Mo17" & sv_ag$DAS > 18 & sv_ag$fertilizer == 100, "area_cm2"]
 b73_area <- sv_ag[sv_ag$genotype == "B73" & sv_ag$DAS > 18 & sv_ag$fertilizer == 100, "area_cm2"]
 
-area_res_t <- conjugate(s1 = mo17_area, s2 = b73_area, method = "t", plot = TRUE, rope_range = c(-5, 5))
+area_res_t <- conjugate(s1 = mo17_area, s2 = b73_area, method = "t", rope_range = c(-5, 5))
+area_res_t
+
+## -----------------------------------------------------------------------------
+plot(area_res_t)
 
 ## -----------------------------------------------------------------------------
 rt <- relativeTolerance(sv_ag,
@@ -141,10 +145,12 @@ ggplot(pd, aes(x = DAS, y = mu_rel, fill = genotype)) +
   labs(y = "Relative Tolerance")
 
 ## -----------------------------------------------------------------------------
-cp <- cumulativePheno(sv_ag, phenotypes = c("area_cm2", "height_cm"), group = "barcode", timeCol = "DAS")
+cp <- cumulativePheno(sv_ag, phenotypes = c("area_cm2", "height_cm"),
+                      group = c("genotype", "fertilizer", "barcode"), timeCol = "DAS")
 
 ## -----------------------------------------------------------------------------
-ggplot(cp, aes(x = DAS, y = area_cm2_csum, color = genotype, group = barcode)) +
+ggplot(cp, aes(x = DAS, y = area_cm2_csum, color = genotype,
+               group = interaction(genotype, barcode))) +
   facet_wrap(~ factor(fertilizer, levels = c("0", "50", "100"))) +
   geom_line() +
   pcv_theme() +
@@ -223,18 +229,19 @@ plotPrior(twoPriors, "gompertz", n = 100)[[1]]
 sv_ag$group <- interaction(sv_ag$fertilizer, sv_ag$genotype)
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  library(brms)
-#  library(cmdstanr)
-#  cmdstanr::install_cmdstan()
+# library(brms)
+# library(cmdstanr)
+# cmdstanr::install_cmdstan()
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  ss <- growthSS(
-#    model = "gompertz", form = area_cm2 ~ DAS | barcode / group, sigma = "spline", df = sv_ag,
-#    start = list("A" = 130, "B" = 10, "C" = 0.5), type = "brms"
-#  )
+# ss <- growthSS(
+#   model = "gompertz", form = area_cm2 ~ DAS | barcode / group, sigma = "spline", df = sv_ag,
+#   start = list("A" = 130, "B" = 10, "C" = 0.5), type = "brms"
+# )
 
 ## -----------------------------------------------------------------------------
-ggplot(sv_ag, aes(x = DAS, y = area_cm2, group = barcode, color = group)) +
+ggplot(sv_ag, aes(x = DAS, y = area_cm2, group = interaction(group, barcode),
+                  color = group)) +
   geom_line() +
   theme_minimal() +
   labs(
@@ -243,18 +250,18 @@ ggplot(sv_ag, aes(x = DAS, y = area_cm2, group = barcode, color = group)) +
   )
 
 ## ----class.source="static-code", eval=FALSE-----------------------------------
-#  fit <- fitGrowth(ss,
-#    iter = 1000, cores = 2, chains = 2, backend = "cmdstanr",
-#    control = list(adapt_delta = 0.999, max_treedepth = 20)
-#  ) # options to increase performance
+# fit <- fitGrowth(ss,
+#   iter = 1000, cores = 2, chains = 2, backend = "cmdstanr",
+#   control = list(adapt_delta = 0.999, max_treedepth = 20)
+# ) # options to increase performance
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  brmPlot(fit, form = area_cm2 ~ DAS | barcode / group, df = ss$df) +
-#    labs(y = expression("Area" ~ "(cm"^2 ~ ")"))
+# growthPlot(fit, form = area_cm2 ~ DAS | barcode / group, df = ss$df) +
+#   labs(y = expression("Area" ~ "(cm"^2 ~ ")"))
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  brmViolin(fit, ss, ".../A_group0.B73 > 1.05") +
-#    ggplot2::theme(axis.text.x.bottom = ggplot2::element_text(angle = 90))
+# brmViolin(fit, ss, ".../A_group0.B73 > 1.05") +
+#   ggplot2::theme(axis.text.x.bottom = ggplot2::element_text(angle = 90))
 
 ## -----------------------------------------------------------------------------
 ggplot(sv_ag[sv_ag$DAS == 18, ], aes(
@@ -273,7 +280,7 @@ ggplot(sv_ag[sv_ag$DAS == 18, ], aes(
 ## -----------------------------------------------------------------------------
 set.seed(123)
 dists <- stats::setNames(lapply(runif(12, 50, 60), function(i) {
-  list(mean = i, sd = 15)
+  return(list(mean = i, sd = 15))
 }), rep("rnorm", 12))
 d <- mvSim(dists,
   wide = TRUE, n_samples = 5,
@@ -281,7 +288,7 @@ d <- mvSim(dists,
   params = list("A" = runif(12, 1, 3))
 )
 d$group <- sapply(sub(".*_", "", d$group), function(x) {
-  letters[as.numeric(x)]
+  return(letters[as.numeric(x)])
 })
 d$genotype <- ifelse(d$group %in% letters[1:3], "MM",
   ifelse(d$group %in% letters[4:6], "B73",
@@ -315,8 +322,10 @@ b73_sample <- hue_wide[
 
 hue_res_ln <- conjugate(
   s1 = mo17_sample, s2 = b73_sample, method = "lognormal",
-  plot = TRUE, rope_range = c(-10, 10), hypothesis = "equal"
+  rope_range = c(-10, 10), hypothesis = "equal"
 )
+hue_res_ln
+plot(hue_res_ln)
 
 ## -----------------------------------------------------------------------------
 pcadf(hue_wide, cols = "hue_frequencies", color = "genotype", returnData = FALSE) +
@@ -329,24 +338,30 @@ simFreqs <- function(vec, group) {
   s1 <- hist(vec, breaks = seq(1, 181, 1), plot = FALSE)$counts
   s1d <- as.data.frame(cbind(data.frame(group), matrix(s1, nrow = 1)))
   colnames(s1d) <- c("group", paste0("sim_", 1:180))
-  s1d
+  return(s1d)
 }
 
 sim_df <- rbind(
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(rnorm(200, 50, 10), group = "normal")
+    sf <- simFreqs(rnorm(200, 50, 10), group = "normal")
+    return(sf)
   })),
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(rlnorm(200, log(30), 0.25), group = "lognormal")
+    sf <- simFreqs(rlnorm(200, log(30), 0.25), group = "lognormal")
+    return(sf)
   })),
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(c(rlnorm(125, log(15), 0.25), rnorm(75, 75, 5)), group = "bimodal")
+    sf <- simFreqs(c(rlnorm(125, log(15), 0.25), rnorm(75, 75, 5)), group = "bimodal")
+    return(sf)
   })),
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(c(rlnorm(100, log(15), 0.25), rnorm(50, 50, 5), rnorm(50, 90, 5)), group = "trimodal")
+    sf <- simFreqs(c(rlnorm(100, log(15), 0.25), rnorm(50, 50, 5),
+                     rnorm(50, 90, 5)), group = "trimodal")
+    return(sf)
   })),
   do.call(rbind, lapply(1:10, function(i) {
-    simFreqs(runif(200, 1, 180), group = "uniform")
+    sf <- simFreqs(runif(200, 1, 180), group = "uniform")
+    return(sf)
   }))
 )
 
@@ -374,15 +389,15 @@ n <- pcv.net(sim_emd$data, filter = "0.5")
 net.plot(n, fill = "group")
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  EMD <- pcv.emd(
-#    df = hue_wide[hue_wide$DAS %in% c(5, 12, 19), ], cols = "hue_frequencies",
-#    reorder = c("fertilizer", "genotype", "DAS"),
-#    mat = FALSE, plot = TRUE, parallel = 12, raiseError = TRUE
-#  )
+# EMD <- pcv.emd(
+#   df = hue_wide[hue_wide$DAS %in% c(5, 12, 19), ], cols = "hue_frequencies",
+#   reorder = c("fertilizer", "genotype", "DAS"),
+#   mat = FALSE, plot = TRUE, parallel = 12, raiseError = TRUE
+# )
 
 ## ----eval=FALSE, include=FALSE------------------------------------------------
-#  head(EMD$data)
-#  EMD$plot
+# head(EMD$data)
+# EMD$plot
 
 ## -----------------------------------------------------------------------------
 hue_ag1 <- mv_ag(df = hue_wide, group = c("DAS", "genotype", "fertilizer"), n_per_group = 2)
@@ -392,9 +407,9 @@ hue_ag2 <- mv_ag(hue_wide, group = c("DAS", "genotype", "fertilizer"), n_per_gro
 dim(hue_ag2)
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  set.seed(456)
-#  net <- pcv.net(EMD$data, meta = c("fertilizer", "genotype", "DAS"), filter = 0.5)
+# set.seed(456)
+# net <- pcv.net(EMD$data, meta = c("fertilizer", "genotype", "DAS"), filter = 0.5)
 
 ## ----eval=FALSE---------------------------------------------------------------
-#  net.plot(net, fill = "DAS", shape = "fertilizer", size = 2)
+# net.plot(net, fill = "DAS", shape = "fertilizer", size = 2)
 

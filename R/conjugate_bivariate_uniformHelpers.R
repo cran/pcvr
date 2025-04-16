@@ -6,8 +6,7 @@
 #' set.seed(123)
 #' s1 = stats::runif(10, -1, 10)
 #' out <- .conj_bivariate_uniform_sv(
-#'   s1 = s1, cred.int.level = 0.95,
-#'   plot = TRUE
+#'   s1 = s1, cred.int.level = 0.95
 #' )
 #' lapply(out, head)
 #'
@@ -15,7 +14,7 @@
 #' @noRd
 
 .conj_bivariate_uniform_sv <- function(s1 = NULL, priors = NULL,
-                                       plot = FALSE, support = NULL, cred.int.level = NULL,
+                                       support = NULL, cred.int.level = NULL,
                                        calculatingSupport = FALSE) {
   out <- list()
   #* `make default prior if none provided`
@@ -116,15 +115,23 @@
     "scale" = scale_prime, "location_l" = location_l_prime,
     "location_u" = location_u_prime
   )
-  #* `save s1 data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = c(support_l, support_u),
-      "prob" = c(pdf_l, pdf_u),
-      "param" = rep(c("A", "B"), each = length(support_u)),
-      "sample" = rep("Sample 1", 2 * length(support_u))
+  out$prior <- priors
+  #* `save modified parameter list for downstream functions`
+  out$plot_list <- list(
+    "range" = list(range(support_l), range(support_u)),
+    "ddist_fun" = list("extraDistr::dpareto", "extraDistr::dpareto"),
+    "parameters" = list(
+      list("a" = scale_prime, "b" = location_l_prime),
+      list("a" = scale_prime, "b" = location_u_prime)
     )
-  }
+  )
+  #* `save s1 data for plotting`
+  out$plot_df <- data.frame(
+    "range" = c(support_l, support_u),
+    "prob" = c(pdf_l, pdf_u),
+    "param" = rep(c("A", "B"), each = length(support_u)),
+    "sample" = rep("Sample 1", 2 * length(support_u))
+  )
   return(out)
 }
 
@@ -162,15 +169,14 @@
 #' )
 #' out <- .conj_bivariate_uniform_mv(
 #'   s1 = s1[, -1], cred.int.level = 0.95,
-#'   priors = list(location_l = 50, location_u = 100, scale = 1),
-#'   plot = FALSE
+#'   priors = list(location_l = 50, location_u = 100, scale = 1)
 #' )
 #' lapply(out, head)
 #' @keywords internal
 #' @noRd
 
 .conj_bivariate_uniform_mv <- function(s1 = NULL, priors = NULL,
-                                       plot = FALSE, support = NULL, cred.int.level = NULL,
+                                       support = NULL, cred.int.level = NULL,
                                        calculatingSupport = FALSE) {
   out <- list()
   #* `make default prior if none provided`
@@ -185,12 +191,12 @@
   #* `Max non-zero bin`
   max_obs <- max(unlist(lapply(seq_len(n_obs), function(i) {
     col <- utils::tail(colnames(s1)[which(s1[i, ] > 0)], 1)
-    as.numeric(gsub("[a-zA-Z]_*", "", col))
+    return(as.numeric(gsub("[a-zA-Z]_*", "", col)))
   })), na.rm = TRUE)
   #* `Min non-zero bin`
   min_obs <- min(unlist(lapply(seq_len(n_obs), function(i) {
     col <- colnames(s1)[which(s1[i, ] > 0)][1]
-    as.numeric(gsub("[a-zA-Z]_*", "", col))
+    return(as.numeric(gsub("[a-zA-Z]_*", "", col)))
   })), na.rm = TRUE)
   #* `Update bivariate pareto prior with sufficient statistics`
   location_u_prime <- max(c(max_obs, priors$location_u[1]))
@@ -284,14 +290,13 @@
     "scale" = scale_prime, "location_l" = location_l_prime,
     "location_u" = location_u_prime
   )
+  out$prior <- priors
   #* `save s1 data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = c(support_l, support_u),
-      "prob" = c(pdf_l, pdf_u),
-      "param" = rep(c("A", "B"), each = length(support_u)),
-      "sample" = rep("Sample 1", 2 * length(support_u))
-    )
-  }
+  out$plot_df <- data.frame(
+    "range" = c(support_l, support_u),
+    "prob" = c(pdf_l, pdf_u),
+    "param" = rep(c("A", "B"), each = length(support_u)),
+    "sample" = rep("Sample 1", 2 * length(support_u))
+  )
   return(out)
 }

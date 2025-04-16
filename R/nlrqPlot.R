@@ -14,7 +14,7 @@
 #' @param groups An optional set of groups to keep in the plot.
 #' Defaults to NULL in which case all groups in the model are plotted.
 #' @param timeRange An optional range of times to use. This can be used to view predictions for
-#' future data if the avaiable data has not reached some point (such as asymptotic size).
+#' future data if the available data has not reached some point (such as asymptotic size).
 #' @param facetGroups logical, should groups be separated in facets? Defaults to TRUE.
 #' @param groupFill logical, should groups have different colors? Defaults to FALSE.
 #' If TRUE then viridis colormaps are used in the order of virMaps
@@ -68,7 +68,7 @@ nlrqPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
   if (!is.null(groups)) {
     keep_index_df <- Reduce(intersect, lapply(seq_along(groups), function(i) {
       grp <- groups[i]
-      which(df[[group[i]]] %in% grp)
+      return(which(df[[group[i]]] %in% grp))
     }))
     df <- df[keep_index_df, ]
   }
@@ -79,7 +79,7 @@ nlrqPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
       append(
         list(timeRange),
         c(lapply(group, function(grp) {
-          unique(df[[grp]])
+          return(unique(df[[grp]]))
         }))
       )
     )
@@ -96,7 +96,7 @@ nlrqPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
   #* `add predictions`
   preds <- do.call(cbind, lapply(fit, function(f) {
     tau <- f$m$tau()
-    stats::setNames(data.frame(stats::predict(f, newdata = new_data)), paste0("Q_", tau))
+    return(stats::setNames(data.frame(stats::predict(f, newdata = new_data)), paste0("Q_", tau)))
   }))
   predCols <- colnames(preds)
   keep <- which(!duplicated(preds))
@@ -121,7 +121,7 @@ nlrqPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
         virpal_p2 <- viridis::viridis(ceiling(length(predCols) / 2),
           direction = -1, end = 1, option = pal
         )[-1]
-        c(virpal_p1, virpal_p2)
+        return(c(virpal_p1, virpal_p2))
       }
     )
   } else {
@@ -129,7 +129,7 @@ nlrqPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
     virpal_p2 <- viridis::plasma(ceiling(length(predCols) / 2), direction = -1, end = 1)[-1]
     virpal <- c(virpal_p1, virpal_p2)
     virList <- lapply(seq_along(unique(interaction(df[, group]))), function(i) {
-      virpal
+      return(virpal)
     })
   }
   #* `layer for individual lines if formula was complete`
@@ -160,10 +160,11 @@ nlrqPlot <- function(fit, form, df = NULL, groups = NULL, timeRange = NULL,
     sub <- plotdf[plotdf[["group_interaction"]] == iteration_group, ]
     plot <- plot +
       lapply(seq_along(predCols), function(i) {
-        ggplot2::geom_line(
+        line_layer <- ggplot2::geom_line(
           data = sub, ggplot2::aes(x = .data[[x]], y = .data[[predCols[i]]]),
           color = virList[[g]][i], linewidth = 0.7
         )
+        return(line_layer)
       })
   }
 

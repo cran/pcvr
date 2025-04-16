@@ -18,7 +18,7 @@
 #' @keywords internal
 #' @noRd
 .conj_pareto_mv <- function(s1 = NULL, priors = NULL,
-                            plot = FALSE, support = NULL, cred.int.level = NULL,
+                            support = NULL, cred.int.level = NULL,
                             calculatingSupport = FALSE) {
   out <- list()
   #* `N observations`
@@ -30,7 +30,7 @@
   #* `Min non-zero bin`
   obs_min <- min(unlist(lapply(seq_len(n_obs), function(i) {
     col <- colnames(s1)[which(s1[i, ] > 0)][1]
-    as.numeric(gsub("[a-zA-Z]_*", "", col))
+    return(as.numeric(gsub("[a-zA-Z]_*", "", col)))
   })), na.rm = TRUE)
   #* `make default prior if none provided`
   if (is.null(priors)) {
@@ -53,12 +53,12 @@
     return(scale_mle)
   }))
   scale_estimate <- mean(row_scales)
-  sv_draws <- extraDistr::rpareto(n_obs, scale_estimate, priors$known_location)
+  sv_draws <- extraDistr::rpareto(n_obs, scale_estimate, priors$known_location[1])
   #* `Update gamma prior with sufficient statistics`
   n <- length(sv_draws)
   m <- prod(sv_draws)
-  a_prime <- priors$a + n
-  b_prime <- 1 / (1 / priors$b + log(m) - n * log(priors$known_location))
+  a_prime <- priors$a[1] + n
+  b_prime <- 1 / (1 / priors$b[1] + log(m) - n * log(priors$known_location[1]))
   #* `Define support if it is missing`
   if (is.null(support) && calculatingSupport) {
     quantiles <- qgamma(c(0.0001, 0.9999), a_prime, b_prime)
@@ -80,16 +80,18 @@
   out$posterior <- list(
     "a" = a_prime,
     "b" = b_prime,
-    "known_location" = priors$known_location
+    "known_location" = priors$known_location[1]
   )
+  out$prior <- priors
   #* `save s1 data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = support,
-      "prob" = pdf1,
-      "sample" = rep("Sample 1", length(support))
-    )
-  }
+  out$plot_list <- list(
+    "range" = range(support),
+    "ddist_fun" = "stats::dgamma",
+    "priors" = list("shape" = priors$a[1],  "rate" = priors$b[1]),
+    "parameters" = list("shape" = a_prime,
+                        "rate" = b_prime),
+    "given" = list("location" = priors$known_location[1])
+  )
   return(out)
 }
 
@@ -106,7 +108,7 @@
 #' @keywords internal
 #' @noRd
 .conj_pareto_sv <- function(s1 = NULL, priors = NULL,
-                            plot = FALSE, support = NULL, cred.int.level = NULL,
+                            support = NULL, cred.int.level = NULL,
                             calculatingSupport = FALSE) {
   out <- list()
   #* `make default prior if none provided`
@@ -116,8 +118,8 @@
   #* `Update gamma prior with sufficient statistics`
   n <- length(s1)
   m <- prod(s1)
-  a_prime <- priors$a + n
-  b_prime <- 1 / (1 / priors$b + log(m) - n * log(priors$known_location))
+  a_prime <- priors$a[1] + n
+  b_prime <- 1 / (1 / priors$b[1] + log(m) - n * log(priors$known_location[1]))
   #* `Define support if it is missing`
   if (is.null(support) && calculatingSupport) {
     quantiles <- qgamma(c(0.0001, 0.9999), a_prime, b_prime)
@@ -139,15 +141,17 @@
   out$posterior <- list(
     "a" = a_prime,
     "b" = b_prime,
-    "known_location" = priors$known_location
+    "known_location" = priors$known_location[1]
   )
+  out$prior <- priors
   #* `save s1 data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = support,
-      "prob" = pdf1,
-      "sample" = rep("Sample 1", length(support))
-    )
-  }
+  out$plot_list <- list(
+    "range" = range(support),
+    "ddist_fun" = "stats::dgamma",
+    "priors" = list("shape" = priors$a[1],  "rate" = priors$b[1]),
+    "parameters" = list("shape" = a_prime,
+                        "rate" = b_prime),
+    "given" = list("b" = priors$known_location[1])
+  )
   return(out)
 }

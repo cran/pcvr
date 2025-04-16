@@ -6,12 +6,13 @@
 \usage{
 pwue(
   df,
-  w,
+  w = NULL,
   pheno = "area_pixels",
   time = "timestamp",
   id = "barcode",
   offset = 0,
-  waterCol = "water_amount",
+  pre_watering = "weight_before",
+  post_watering = "weight_after",
   method = "rate"
 )
 }
@@ -33,18 +34,28 @@ account. This defaults to 0, meaning that if a plant were watered directly befor
 that water would be counted towards WUE between the current image and the prior one.
 This argument is taken to be in seconds.}
 
-\item{waterCol}{Column containing watering amounts in \code{w}. This defaults to "watering_amount".}
+\item{pre_watering}{Column containing weight before watering in \code{w},
+defaults to "weight_before".}
 
-\item{method}{Which method to use, options are "rate" and "abs". The "rate" method considers WUE as
-the change in a phenotype divided by the amount of water added. The "abs" method considers WUE as
-the amount of water used by a plant given its absolute size. The former is for questions more
-related to efficiency in using water to grow while the latter is more suited to questions about
-how efficient a plant is at maintaining size given some amount of water.}
+\item{post_watering}{Column containing weight after watering in \code{w},
+defaults to "weight_after".}
+
+\item{method}{Which method to use, options are "rate", "abs", and "ndt". The "rate" method considers
+WUE as the change in a phenotype divided by the amount of water added. The "abs" method considers WUE
+as the amount of water used by a plant given its absolute size.
+The "ndt" method calculates normalized daily transpiration,
+which is the reciprocal of the "abs" method. The "rate" method is for questions more
+related to efficiency in using water to grow while "abs"/"ndt" are more suited to questions about
+how efficient a plant is at maintaining size given some amount of water or how much water it uses
+at a given size.}
 }
 \value{
-A data frame containing the bellwether watering data joined
-    to phenotype data with new columns for change in the phenotype,
-    change in the pre-watering weight, and pseudo-water use efficiency (pWUE).
+A data frame containing the watering data and
+    to phenotype data with new columns for change in the phenotype (\code{pheno_diff}),
+    amount of water used (\code{total_water}) over the interval between phenotype measurements
+    (water added post to pre phenotype measurement), \code{start} and \code{end} times for the
+    interval as well as their difference (\code{timeLengthSeconds}), and pseudo water use efficiency
+    (\code{pWUE}).
 }
 \description{
 Rate based water use efficiency (WUE) is the change in biomass per unit of water
@@ -61,37 +72,22 @@ The equation is then
 \eqn{\frac{P_{t}}{W_{t_{end-1}}-W_{t_{start}} }}{P_[t] / W_[t_(end-1)]-W_[t_start]}
 }
 \examples{
-sim_water <- data.frame(
-  "barcode" = "exampleBarcode1",
-  "timestamp" = as.POSIXct(c(
-    "2023-04-13 23:28:17 UTC",
-    "2023-04-22 05:30:42 UTC",
-    "2023-05-04 18:55:38 UTC"
-  )),
-  "DAS" = c(0.000000, 8.251675, 20.810660),
-  "water_amount" = c(98, 12, -1)
-)
-sim_df <- data.frame(
-  "barcode" = "exampleBarcode1",
-  "timestamp" = as.POSIXct(c(
-    "2023-04-13 23:28:17 UTC",
-    "2023-04-22 05:30:42 UTC",
-    "2023-05-04 18:55:38 UTC"
-  )),
-  "DAS" = c(0.000000, 8, 20),
-  "area_pixels" = c(20, 1000, 1500)
-)
-pwue(
-  df = sim_df, w = sim_water, pheno = "area_pixels",
-  time = "timestamp", id = "barcode", offset = 0,
-  waterCol = "water_amount", method = "rate"
-)
 
-pwue(
-  df = sim_df, w = sim_water, pheno = "area_pixels",
-  time = c("timestamp", "timestamp"), id = "barcode", offset = 0,
-  waterCol = "water_amount", method = "abs"
+set.seed(123)
+weight_before <- sort(round(rnorm(20, 100, 10), 0))
+weight_after <- sort(round(rnorm(20, 120, 10), 0))
+df <- data.frame(
+  time = seq_along(weight_before),
+  area_pixels = round(130 / (1 + exp( (12 - seq_along(weight_before))/3) ), 0),
+  weight_before,
+  weight_after,
+  barcode = 1,
+  other = "x"
 )
+ex <- pwue(df, time = "time", method = "rate", id = c("barcode", "other"))
+w <- df[, c("time", "weight_before", "weight_after", "barcode")]
+ex2 <- pwue(df, w, time = c("time", "time"), method = "abs")
+ex3 <- pwue(df, w, time = c("time", "time"), method = "ndt")
 
 }
 \keyword{WUE}

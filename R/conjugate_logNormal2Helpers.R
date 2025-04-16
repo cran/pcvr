@@ -22,7 +22,7 @@
 #' @noRd
 
 .conj_lognormal2_mv <- function(s1 = NULL, priors = NULL,
-                                plot = FALSE, support = NULL, cred.int.level = NULL,
+                                support = NULL, cred.int.level = NULL,
                                 calculatingSupport = FALSE) {
   out <- list()
   #* `make default prior if none provided`
@@ -49,13 +49,13 @@
   })
   #* `Unlist parameters`
   a_prime <- mean(unlist(lapply(rep_distributions, function(i) {
-    i$a_prime
+    return(i$a_prime)
   })))
   b_prime <- mean(unlist(lapply(rep_distributions, function(i) {
-    i$b_prime
+    return(i$b_prime)
   })))
   ln_mu_prime <- mean(unlist(lapply(rep_distributions, function(i) {
-    i$ln_mu
+    return(i$ln_mu)
   })))
   #* `Define support if it is missing`
   if (is.null(support) && calculatingSupport) {
@@ -74,17 +74,19 @@
   out$posterior$a <- a_prime
   out$posterior$b <- b_prime
   out$posterior$lognormal_mu <- ln_mu_prime # returning this as a number, not a distribution
+  out$prior <- priors
   #* `Make Posterior Draws`
   out$posteriorDraws <- rgamma(10000, shape = a_prime, scale = b_prime)
   out$pdf <- pdf1
   #* `save s1 data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = support,
-      "prob" = pdf1,
-      "sample" = rep("Sample 1", length(support))
-    )
-  }
+  out$plot_list <- list(
+    "range" = range(support),
+    "ddist_fun" = "stats::dgamma",
+    "priors" = list("shape" = priors$a[1],  "scale" = priors$b[1]),
+    "parameters" = list("shape" = a_prime,
+                        "scale" = b_prime),
+    "given" = list("meanlog" = ln_mu_prime)
+  )
   return(out)
 }
 
@@ -107,7 +109,7 @@
 #' @noRd
 
 .conj_lognormal2_sv <- function(s1 = NULL, priors = NULL,
-                                plot = FALSE, support = NULL, cred.int.level = NULL,
+                                support = NULL, cred.int.level = NULL,
                                 calculatingSupport = FALSE) {
   out <- list()
   #* `make default prior if none provided`
@@ -140,16 +142,18 @@
   out$posterior$a <- a_prime
   out$posterior$b <- b_prime
   out$posterior$lognormal_mu <- mu_s1 # returning this as a number, not a distribution
+  out$prior <- priors
   #* `Make Posterior Draws`
   out$posteriorDraws <- rgamma(10000, shape = a_prime, scale = b_prime)
   out$pdf <- pdf1
   #* `save s1 data for plotting`
-  if (plot) {
-    out$plot_df <- data.frame(
-      "range" = support,
-      "prob" = pdf1,
-      "sample" = rep("Sample 1", length(support))
-    )
-  }
+  out$plot_list <- list(
+    "range" = range(support),
+    "ddist_fun" = "stats::dgamma",
+    "priors" = list("shape" = priors$a[1],  "scale" = priors$b[1]),
+    "parameters" = list("shape" = a_prime,
+                        "scale" = b_prime),
+    "given" = list("meanlog" = mu_s1)
+  )
   return(out)
 }
